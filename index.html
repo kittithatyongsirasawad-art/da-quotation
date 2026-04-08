@@ -803,7 +803,9 @@
             <div class="sync-dot" id="settingsSyncDot"></div>
             <span id="settingsConnLabel" style="font-size:12px;color:var(--ink-light);">Enter URL above to connect</span>
             <button class="btn btn-sm btn-outline" onclick="runTestConnection()" style="margin-left:8px;">Test Connection</button>
+            <button class="btn btn-sm btn-outline" onclick="testSave()" style="margin-left:6px;" title="Send a test write to verify saving works">Test Save</button>
           </div>
+          <div id="testSaveResult" style="display:none;margin-top:10px;padding:10px 12px;border-radius:7px;font-size:12px;"></div>
         </div>
 
         <!-- Data Management -->
@@ -848,7 +850,7 @@
 // Paste your deployed Web App URL here once — everyone who opens
 // this file will be connected automatically, no setup needed.
 // ═══════════════════════════════════════════════
-const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbw0YHioGJJFaxtEdnZrGVEZpydbekr1CUdS6MGdadjSSyhzKkRZFXAARUVrUorkK4TB/exec';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyTb94EGSIE6bvztzPZNZ4EcOhBrBofAFhxLQTKURs7p4hkp0j-HknXt32_V6ibap77MA/exec';
 
 // ═══════════════════════════════════════════════
 // LUMP SUM PAIRS
@@ -2106,16 +2108,17 @@ async function saveRecord() {
   const url = getGasUrl();
   if (!url || url === 'YOUR_APPS_SCRIPT_URL_HERE') {
     showToast('⚠ Go to ⚙ Settings and connect Google Sheets first', 'error');
+    switchTab('settings');
     return;
   }
-  if (!packages.length) { showToast('No packages to save', 'error'); return; }
+  if (!packages.length) { showToast('No packages to save — build packages first', 'error'); return; }
 
-  const quotNo      = v('quotNo') || ('QT-' + new Date().getFullYear() + '-' + String(records.length + 1).padStart(3,'0'));
-  const company     = v('clientCompany') || 'Unknown Client';
-  const prepBy      = v('preparedBy')    || '';
-  let totalRev = 0; packages.forEach(p => { totalRev += calcPkgTotals(p).totalRevenue; });
-  let totalCost= 0; packages.forEach(p => { totalCost+= calcPkgTotals(p).totalCost; });
-  const margin = totalRev > 0 ? (totalRev - totalCost) / totalRev : 0;
+  const quotNo  = v('quotNo') || ('QT-' + new Date().getFullYear() + '-' + String(records.length + 1).padStart(3,'0'));
+  const company = v('clientCompany') || 'Unknown Client';
+  const prepBy  = v('preparedBy') || '';
+  let totalRev  = 0; packages.forEach(p => { totalRev  += calcPkgTotals(p).totalRevenue; });
+  let totalCost = 0; packages.forEach(p => { totalCost += calcPkgTotals(p).totalCost; });
+  const margin  = totalRev > 0 ? (totalRev - totalCost) / totalRev : 0;
   const existing = records.findIndex(r => r.quotNo === quotNo);
 
   const rec = {
@@ -2148,45 +2151,56 @@ async function saveRecord() {
     }))
   };
 
-  // Optimistic local update
-  if (existing >= 0) records[existing] = rec; else records.unshift(rec);
-  updateRecordsBadge();
-  renderRecordsTable();
   updateSyncStatus('syncing');
+  showToast('Saving to Google Sheets…', '');
 
   try {
-    // Step 1 — Save summary row (10 short fields, always fits URL)
-    await sheetCall(url, 'save_record', {
-      id:           rec.id,
-      quotNo:       rec.quotNo,
-      date:         rec.date,
-      client:       rec.client,
-      pkgCount:     rec.pkgCount,
+    // Step 1 — Save summary row
+    const r1 = await sheetCall(url, 'save_record', {
+      id: rec.id, quotNo: rec.quotNo, date: rec.date,
+      client: rec.client, pkgCount: rec.pkgCount,
       totalRevenue: rec.totalRevenue,
-      margin:       (margin * 100).toFixed(1) + '%',
-      status:       rec.status,
-      preparedBy:   rec.preparedBy
+      margin: (margin * 100).toFixed(1) + '%',
+      status: rec.status, preparedBy: rec.preparedBy
     });
+    if (!r1 || !r1.ok) throw new Error('Step 1 (summary) failed: ' + (r1 && r1.error ? r1.error : 'no response'));
 
-    // Step 2 — Save full detail (all fields needed for restore)
+    // Step 2 — Save full detail
     const detail = JSON.stringify({
       packages:   rec.packagesSnapshot,
-      contact:    rec.contact,    email:     rec.email,
-      phone:      rec.phone,      addr:      rec.addr,
-      taxId:      rec.taxId,      branch:    rec.branch,
-      validUntil: rec.validUntil, prepEmail: rec.prepEmail,
-      prepPhone:  rec.prepPhone,  quotNotes: rec.quotNotes,
+      contact:    rec.contact,   email:     rec.email,
+      phone:      rec.phone,     addr:      rec.addr,
+      taxId:      rec.taxId,     branch:    rec.branch,
+      validUntil: rec.validUntil,prepEmail: rec.prepEmail,
+      prepPhone:  rec.prepPhone, quotNotes: rec.quotNotes,
       quotTC:     rec.quotTC
     });
-    await saveRecordDetail(url, rec.id, detail);
+    const r2 = await sheetCall(url, 'save_record_detail', { id: rec.id, detail });
+    if (!r2 || !r2.ok) throw new Error('Step 2 (detail) failed: ' + (r2 && r2.error ? r2.error : 'no response'));
 
+    // Both steps succeeded — now update local cache
+    if (existing >= 0) records[existing] = rec; else records.unshift(rec);
+    updateRecordsBadge();
+    renderRecordsTable();
     updateSyncStatus('connected');
     showToast('✓ Saved to Google Sheets — ' + quotNo, 'success');
+
   } catch(err) {
     updateSyncStatus('disconnected');
-    showToast('⚠ Save failed: ' + err.message, 'error');
-    if (existing < 0) records = records.filter(r => r.id !== rec.id);
-    renderRecordsTable();
+    const msg = err.message || String(err);
+    showToast('⚠ ' + msg, 'error');
+    // Show detailed error in records table to help diagnose
+    const tbody = document.getElementById('recordsTableBody');
+    if (tbody && !records.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="padding:20px;text-align:center;">
+        <div style="color:var(--coral);font-weight:600;margin-bottom:6px;">Save failed</div>
+        <div style="font-size:12px;color:var(--ink-light);margin-bottom:10px;">${msg}</div>
+        <div style="font-size:12px;color:var(--ink-mid);">
+          Most likely fix: Go to Apps Script → <strong>Deploy → New deployment</strong> → copy new URL → paste in ⚙ Settings.
+        </div>
+        <button class="btn btn-sm btn-outline" onclick="switchTab('settings')" style="margin-top:10px;">⚙ Open Settings</button>
+      </td></tr>`;
+    }
   }
 }
 
@@ -2536,6 +2550,60 @@ function clearAllLocalData() {
   renderRecordsTable(); renderCatalogManager(); renderCatalog();
   updateRecordsBadge();
   showToast('All local data cleared', '');
+}
+
+
+async function testSave() {
+  const url = getGasUrl();
+  const el  = document.getElementById('testSaveResult');
+  if (!url) { showToast('No URL configured', 'error'); return; }
+
+  el.style.display = '';
+  el.style.background = '#f0f9ff';
+  el.style.border = '1px solid #bae6fd';
+  el.style.color = '#0369a1';
+  el.innerHTML = '⏳ Testing ping…';
+
+  const steps = [
+    { label: 'Ping',        action: 'ping',              payload: null },
+    { label: 'Read records',action: 'get_records',       payload: null },
+    { label: 'Write test',  action: 'save_record',       payload: {
+        id: 'test_diag_' + Date.now(), quotNo: 'DIAG-TEST', date: '2026-01-01',
+        client: 'DIAGNOSTIC TEST', pkgCount: 0, totalRevenue: 0,
+        margin: '0%', status: 'Draft', preparedBy: 'Diagnostic'
+      }
+    },
+    { label: 'Write detail',action: 'save_record_detail',payload: {
+        id: 'test_diag_check', detail: JSON.stringify({ packages:[], test: true })
+      }
+    },
+  ];
+
+  let html = '<strong>Diagnostic Results:</strong><br><br>';
+  let allOk = true;
+
+  for (const step of steps) {
+    el.innerHTML = html + `⏳ Testing: ${step.label}…`;
+    try {
+      const res = await sheetCall(url, step.action, step.payload);
+      const ok  = res && (res.ok === true || res.records !== undefined || res.detail !== undefined);
+      html += `${ok ? '✅' : '⚠️'} <strong>${step.label}</strong>: ${ok ? 'OK' : 'returned ' + JSON.stringify(res)}<br>`;
+      if (!ok) allOk = false;
+    } catch(e) {
+      html += `❌ <strong>${step.label}</strong>: ${e.message}<br>`;
+      allOk = false;
+    }
+  }
+
+  html += '<br>';
+  if (allOk) {
+    html += '✅ <strong>All steps passed!</strong> The connection and saving are working correctly.';
+    el.style.background = '#f0fdf4'; el.style.border = '1px solid #86efac'; el.style.color = '#166534';
+  } else {
+    html += '❌ <strong>Some steps failed.</strong> Go to Apps Script → Deploy → New deployment → paste new URL here.';
+    el.style.background = '#fef2f2'; el.style.border = '1px solid #fca5a5'; el.style.color = '#991b1b';
+  }
+  el.innerHTML = html;
 }
 
 
