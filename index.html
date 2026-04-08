@@ -300,6 +300,7 @@
   .copy-code-btn{font-size:11px;background:var(--teal-light);color:var(--teal-dark);border:none;padding:3px 9px;border-radius:5px;cursor:pointer;font-weight:600;}
   .copy-code-btn:hover{background:var(--teal);color:#fff;}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -591,7 +592,8 @@
             margin:      String(r[6] || ''),
             status:      String(r[7] || 'Draft'),
             preparedBy:  String(r[8] || ''),
-            savedAt:     String(r[9] || '')
+            savedAt:     String(r[9] || ''),
+            pdfUrl:      String(r[10] || '')
           };
         })};
       }
@@ -622,13 +624,12 @@
       if (!sh) {
         sh = ss.insertSheet('QuotationRecords');
         sh.appendRow(['ID','QuotNo','Date','Client','Packages','TotalRevenue',
-                      'Margin','Status','PreparedBy','SavedAt']);
+                      'Margin','Status','PreparedBy','SavedAt','PDFUrl']);
         sh.setFrozenRows(1);
-        sh.getRange('A1:J1').setFontWeight('bold');
-        sh.setColumnWidth(1, 150);
-        sh.setColumnWidth(2, 130);
-        sh.setColumnWidth(4, 200);
-        sh.setColumnWidth(6, 120);
+        sh.getRange('A1:K1').setFontWeight('bold');
+        sh.setColumnWidth(1, 150); sh.setColumnWidth(2, 130);
+        sh.setColumnWidth(4, 200); sh.setColumnWidth(6, 120);
+        sh.setColumnWidth(11, 300);
       }
       var newRow = [
         String(d.id        || ''),
@@ -640,7 +641,8 @@
         String(d.margin    || ''),
         String(d.status    || 'Draft'),
         String(d.preparedBy|| ''),
-        new Date().toISOString()
+        new Date().toISOString(),
+        String(d.pdfUrl    || '')
       ];
       // Find existing row to update, or append new
       var found = false;
@@ -689,6 +691,36 @@
         }
         result = { ok: true };
       }
+    } else if (action === 'save_pdf') {
+      // Receives base64 PDF, saves to Drive folder, returns file URL
+      var d        = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      var id       = String(d.id       || '');
+      var quotNo   = String(d.quotNo   || 'quotation');
+      var folderId = String(d.folderId || '');
+      var base64   = String(d.base64   || '');
+      if (!base64) {
+        result = { ok: false, error: 'No PDF data received' };
+      } else {
+        var bytes   = Utilities.base64Decode(base64);
+        var blob    = Utilities.newBlob(bytes, 'application/pdf', quotNo + '.pdf');
+        var folder  = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+        var file    = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        var fileUrl = 'https://drive.google.com/file/d/' + file.getId() + '/view';
+        // Update PDFUrl in QuotationRecords (col K = index 11)
+        var sh = ss.getSheetByName('QuotationRecords');
+        if (sh && sh.getLastRow() > 1) {
+          var rows = sh.getDataRange().getValues().slice(1);
+          for (var i = 0; i < rows.length; i++) {
+            if (String(rows[i][0]) === id) {
+              sh.getRange(i + 2, 11).setValue(fileUrl);
+              break;
+            }
+          }
+        }
+        result = { ok: true, pdfUrl: fileUrl };
+      }
+
     } else if (action === 'save_catalog_item') {
       var d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
       var sh = ss.getSheetByName('CustomCatalog');
@@ -797,6 +829,15 @@
               <div id="url-validation-msg" style="display:none;margin-top:6px;font-size:12px;padding:6px 10px;border-radius:6px;"></div>
             </div>
           </div>
+          <div class="form-row" style="margin-top:10px;margin-bottom:8px;">
+            <div class="form-group">
+              <label>Google Drive Folder ID <span style="font-size:10.5px;color:var(--ink-light);font-weight:400;">(where PDFs will be saved)</span></label>
+              <input type="text" id="driveFolderId" placeholder="e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs" onchange="saveDriveFolderId()">
+              <span style="font-size:11px;color:var(--ink-light);margin-top:4px;display:block;">
+                📂 Open the folder in Google Drive → copy the ID from the URL: drive.google.com/drive/folders/<strong>[FOLDER-ID]</strong>
+              </span>
+            </div>
+          </div>
           <div class="conn-status-row">
             <div class="sync-dot" id="settingsSyncDot"></div>
             <span id="settingsConnLabel" style="font-size:12px;color:var(--ink-light);">Enter URL above to connect</span>
@@ -848,7 +889,7 @@
 // Paste your deployed Web App URL here once — everyone who opens
 // this file will be connected automatically, no setup needed.
 // ═══════════════════════════════════════════════
-const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwWcGZNROi9I469lO1FpblUM4aqNhpR13P7xovI-uBsFoEPPV793AYcnq75EnnqgNI/exec';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwhKtwCdVM4h2WCZXNQ9HnBDKpngzipGhKSjS4cpv7KfnKKPXlRcd7xF0ha-mScc4hSaw/exec';
 
 // ═══════════════════════════════════════════════
 // LUMP SUM PAIRS
@@ -1820,6 +1861,8 @@ function switchTab(name) {
     const activeUrl = getGasUrl();
     const urlEl = document.getElementById('gasUrl');
     if (urlEl) urlEl.value = activeUrl;
+    const folderEl = document.getElementById('driveFolderId');
+    if (folderEl) folderEl.value = getDriveFolderId();
     const syncBtn = document.getElementById('syncBtn');
     if (syncBtn) syncBtn.style.display = activeUrl ? '' : 'none';
     // Show badge: built-in default vs custom
@@ -2043,7 +2086,7 @@ async function fetchRecordsFromSheets() {
   try {
     const res = await sheetCall(url, 'get_records');
     if (res && res.records) {
-      records = res.records.map(r => ({ ...r, packagesSnapshot: [], legacyJSON: r.legacyJSON || '' }));
+      records = res.records.map(r => ({ ...r, packagesSnapshot: [], legacyJSON: r.legacyJSON || '', pdfUrl: r.pdfUrl || '' }));
       updateRecordsBadge();
       renderRecordsTable();
       updateSyncStatus('connected');
@@ -2107,8 +2150,10 @@ function renderRecordsTable() {
       </td>
       <td>
         <div class="rec-actions">
-          <button class="btn btn-sm btn-outline" onclick="restoreRecord('${r.id}')" title="Open in builder">↩ Open</button>
-          <button class="btn btn-sm btn-danger"  onclick="deleteRecord('${r.id}')"  title="Delete">✕</button>
+          ${r.pdfUrl
+            ? `<button class="btn btn-sm btn-primary" onclick="window.open('${r.pdfUrl}','_blank')" title="View PDF">📄 View PDF</button>`
+            : `<span style="font-size:11px;color:var(--ink-light);">No PDF</span>`}
+          <button class="btn btn-sm btn-danger" onclick="deleteRecord('${r.id}')" title="Delete">✕</button>
         </div>
       </td>
     </tr>`;
@@ -2205,25 +2250,46 @@ async function saveRecord() {
     });
     if (!r1 || !r1.ok) throw new Error('Step 1 (summary) failed: ' + (r1 && r1.error ? r1.error : 'no response'));
 
-    // Step 2 — Save full detail
-    const detail = JSON.stringify({
-      packages:   rec.packagesSnapshot,
-      contact:    rec.contact,   email:     rec.email,
-      phone:      rec.phone,     addr:      rec.addr,
-      taxId:      rec.taxId,     branch:    rec.branch,
-      validUntil: rec.validUntil,prepEmail: rec.prepEmail,
-      prepPhone:  rec.prepPhone, quotNotes: rec.quotNotes,
-      quotTC:     rec.quotTC
-    });
-    const r2 = await sheetCall(url, 'save_record_detail', { id: rec.id, detail });
-    if (!r2 || !r2.ok) throw new Error('Step 2 (detail) failed: ' + (r2 && r2.error ? r2.error : 'no response'));
+    // Step 2 — Generate PDF and save to Google Drive
+    showToast('Generating PDF…', '');
+    let pdfUrl = '';
+    try {
+      const base64 = await generatePdfBase64();
+      showToast('Uploading PDF to Drive…', '');
+      const r2 = await sheetCall(url, 'save_pdf', {
+        id:       rec.id,
+        quotNo:   rec.quotNo + '_' + rec.date,
+        folderId: getDriveFolderId(),
+        base64
+      });
+      if (r2 && r2.ok && r2.pdfUrl) {
+        pdfUrl = r2.pdfUrl;
+        rec.pdfUrl = pdfUrl;
+      }
+    } catch(pdfErr) {
+      // PDF generation failed — still save the record, just without PDF
+      console.warn('PDF generation failed:', pdfErr.message);
+    }
 
-    // Both steps succeeded — now update local cache
+    // Update summary row with PDF URL
+    if (pdfUrl) {
+      await sheetCall(url, 'save_record', {
+        id: rec.id, quotNo: rec.quotNo, date: rec.date,
+        client: rec.client, pkgCount: rec.pkgCount,
+        totalRevenue: rec.totalRevenue,
+        margin: (margin * 100).toFixed(1) + '%',
+        status: rec.status, preparedBy: rec.preparedBy,
+        pdfUrl
+      });
+    }
+
+    // Update local cache
     if (existing >= 0) records[existing] = rec; else records.unshift(rec);
     updateRecordsBadge();
     renderRecordsTable();
     updateSyncStatus('connected');
-    showToast('✓ Saved to Google Sheets — ' + quotNo, 'success');
+    const pdfNote = pdfUrl ? ' — PDF saved to Drive ✓' : ' (PDF not generated)';
+    showToast('✓ Saved: ' + quotNo + pdfNote, 'success');
 
   } catch(err) {
     updateSyncStatus('disconnected');
@@ -2242,6 +2308,31 @@ async function saveRecord() {
       </td></tr>`;
     }
   }
+}
+
+
+async function generatePdfBase64() {
+  // Ensure quotation is rendered
+  renderQuotation();
+  await new Promise(r => setTimeout(r, 300)); // wait for render
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const el  = document.getElementById('quotationDoc');
+
+  return new Promise((resolve, reject) => {
+    doc.html(el, {
+      callback: function(pdf) {
+        const base64 = pdf.output('datauristring').split(',')[1];
+        resolve(base64);
+      },
+      x: 10, y: 10,
+      width: 190,
+      windowWidth: 794,
+      autoPaging: 'text',
+      margin: [10, 10, 10, 10]
+    });
+  });
 }
 
 
@@ -2405,8 +2496,15 @@ async function restoreRecord(id) {
 // ═══════════════════════════════════════════════════════
 function getGasUrl() {
   const saved = (localStorage.getItem('da_gas_url') || '').trim();
-  const url   = saved || (typeof DEFAULT_GAS_URL !== 'undefined' ? DEFAULT_GAS_URL.trim() : '');
-  return url;
+  return saved || (typeof DEFAULT_GAS_URL !== 'undefined' ? DEFAULT_GAS_URL.trim() : '');
+}
+function getDriveFolderId() {
+  return (localStorage.getItem('da_drive_folder_id') || '').trim();
+}
+function saveDriveFolderId() {
+  const val = document.getElementById('driveFolderId')?.value?.trim() || '';
+  localStorage.setItem('da_drive_folder_id', val);
+  showToast('Drive Folder ID saved', 'success');
 }
 
 function validateGasUrl(url) {
@@ -2522,7 +2620,7 @@ async function testConnection() {
     // Get records — load them into memory so Records tab shows immediately
     const recRes = await sheetCall(url, 'get_records');
     if (recRes && recRes.records) {
-      records = recRes.records.map(r => ({ ...r, packagesSnapshot: [], legacyJSON: r.legacyJSON || '' }));
+      records = recRes.records.map(r => ({ ...r, packagesSnapshot: [], legacyJSON: r.legacyJSON || '', pdfUrl: r.pdfUrl || '' }));
       updateRecordsBadge();
       renderRecordsTable();
     }
@@ -2728,7 +2826,8 @@ function copyGASCode() {
             margin:      String(r[6] || ''),
             status:      String(r[7] || 'Draft'),
             preparedBy:  String(r[8] || ''),
-            savedAt:     String(r[9] || '')
+            savedAt:     String(r[9] || ''),
+            pdfUrl:      String(r[10] || '')
           };
         })};
       }
@@ -2759,13 +2858,12 @@ function copyGASCode() {
       if (!sh) {
         sh = ss.insertSheet('QuotationRecords');
         sh.appendRow(['ID','QuotNo','Date','Client','Packages','TotalRevenue',
-                      'Margin','Status','PreparedBy','SavedAt']);
+                      'Margin','Status','PreparedBy','SavedAt','PDFUrl']);
         sh.setFrozenRows(1);
-        sh.getRange('A1:J1').setFontWeight('bold');
-        sh.setColumnWidth(1, 150);
-        sh.setColumnWidth(2, 130);
-        sh.setColumnWidth(4, 200);
-        sh.setColumnWidth(6, 120);
+        sh.getRange('A1:K1').setFontWeight('bold');
+        sh.setColumnWidth(1, 150); sh.setColumnWidth(2, 130);
+        sh.setColumnWidth(4, 200); sh.setColumnWidth(6, 120);
+        sh.setColumnWidth(11, 300);
       }
       var newRow = [
         String(d.id        || ''),
@@ -2777,7 +2875,8 @@ function copyGASCode() {
         String(d.margin    || ''),
         String(d.status    || 'Draft'),
         String(d.preparedBy|| ''),
-        new Date().toISOString()
+        new Date().toISOString(),
+        String(d.pdfUrl    || '')
       ];
       // Find existing row to update, or append new
       var found = false;
@@ -2826,6 +2925,36 @@ function copyGASCode() {
         }
         result = { ok: true };
       }
+    } else if (action === 'save_pdf') {
+      // Receives base64 PDF, saves to Drive folder, returns file URL
+      var d        = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      var id       = String(d.id       || '');
+      var quotNo   = String(d.quotNo   || 'quotation');
+      var folderId = String(d.folderId || '');
+      var base64   = String(d.base64   || '');
+      if (!base64) {
+        result = { ok: false, error: 'No PDF data received' };
+      } else {
+        var bytes   = Utilities.base64Decode(base64);
+        var blob    = Utilities.newBlob(bytes, 'application/pdf', quotNo + '.pdf');
+        var folder  = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+        var file    = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        var fileUrl = 'https://drive.google.com/file/d/' + file.getId() + '/view';
+        // Update PDFUrl in QuotationRecords (col K = index 11)
+        var sh = ss.getSheetByName('QuotationRecords');
+        if (sh && sh.getLastRow() > 1) {
+          var rows = sh.getDataRange().getValues().slice(1);
+          for (var i = 0; i < rows.length; i++) {
+            if (String(rows[i][0]) === id) {
+              sh.getRange(i + 2, 11).setValue(fileUrl);
+              break;
+            }
+          }
+        }
+        result = { ok: true, pdfUrl: fileUrl };
+      }
+
     } else if (action === 'save_catalog_item') {
       var d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
       var sh = ss.getSheetByName('CustomCatalog');
