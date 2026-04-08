@@ -658,8 +658,13 @@
 
           <div class="form-row" style="margin-top:14px;margin-bottom:8px;">
             <div class="form-group">
-              <label>Google Apps Script Web App URL</label>
+              <label>Google Apps Script Web App URL
+                <span id="url-source-badge" style="margin-left:8px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--teal-light);color:var(--teal-dark);"></span>
+              </label>
               <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/…/exec" onchange="saveSettings()" onblur="saveSettings()">
+              <span style="font-size:11px;color:var(--ink-light);margin-top:4px;display:block;">
+                💡 To update for all team members: edit <code style="background:var(--surface);padding:1px 5px;border-radius:3px;">DEFAULT_GAS_URL</code> at the top of this HTML file and re-upload.
+              </span>
             </div>
           </div>
           <div class="conn-status-row">
@@ -706,6 +711,13 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// ═══════════════════════════════════════════════
+// DEFAULT GOOGLE APPS SCRIPT URL
+// Paste your deployed Web App URL here once — everyone who opens
+// this file will be connected automatically, no setup needed.
+// ═══════════════════════════════════════════════
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbw0YHioGJJFaxtEdnZrGVEZpydbekr1CUdS6MGdadjSSyhzKkRZFXAARUVrUorkK4TB/exec';
+
 // ═══════════════════════════════════════════════
 // LUMP SUM PAIRS
 // When a per-unit code is selected and pax < threshold,
@@ -1491,10 +1503,19 @@ function switchTab(name) {
   if (name === 'records')   renderRecordsTable();
   if (name === 'catalog')   renderCatalogManager();
   if (name === 'settings') {
+    const activeUrl = getGasUrl();
     const urlEl = document.getElementById('gasUrl');
-    if (urlEl) urlEl.value = getGasUrl();
+    if (urlEl) urlEl.value = activeUrl;
     const syncBtn = document.getElementById('syncBtn');
-    if (syncBtn) syncBtn.style.display = getGasUrl() ? '' : 'none';
+    if (syncBtn) syncBtn.style.display = activeUrl ? '' : 'none';
+    // Show badge: built-in default vs custom
+    const badge = document.getElementById('url-source-badge');
+    if (badge && activeUrl && activeUrl !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+      const isCustom = (localStorage.getItem('da_gas_url')||'').trim() === activeUrl;
+      badge.textContent = isCustom ? 'Custom (overrides default)' : 'Built-in default';
+      badge.style.background = isCustom ? 'var(--amber-light)' : 'var(--teal-light)';
+      badge.style.color = isCustom ? '#92400e' : 'var(--teal-dark)';
+    }
   }
 }
 
@@ -1528,14 +1549,18 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPackages();
   renderRecordsTable();
   renderCatalogManager();
-  // Restore GAS URL if saved
-  const savedUrl = getGasUrl();
-  if (savedUrl) {
+  // Pre-fill and auto-connect Google Sheets
+  const activeUrl = getGasUrl();
+  if (activeUrl && activeUrl !== 'YOUR_APPS_SCRIPT_URL_HERE') {
     const urlEl = document.getElementById('gasUrl');
-    if (urlEl) urlEl.value = savedUrl;
+    if (urlEl) urlEl.value = activeUrl;
     const syncBtn = document.getElementById('syncBtn');
     if (syncBtn) syncBtn.style.display = '';
     updateSyncStatus('connected');
+    // Auto test connection silently on load
+    setTimeout(() => {
+      testConnection().catch(() => {});
+    }, 500);
   }
 });
 
@@ -1853,7 +1878,11 @@ function restoreRecord(id) {
 // ═══════════════════════════════════════════════════════
 // GOOGLE SHEETS / SETTINGS
 // ═══════════════════════════════════════════════════════
-function getGasUrl() { return (localStorage.getItem('da_gas_url')||'').trim(); }
+function getGasUrl() {
+  // Use saved URL if team member entered their own, otherwise use the built-in default
+  const saved = (localStorage.getItem('da_gas_url') || '').trim();
+  return saved || (typeof DEFAULT_GAS_URL !== 'undefined' ? DEFAULT_GAS_URL.trim() : '');
+}
 
 function saveSettings() {
   const url = document.getElementById('gasUrl')?.value?.trim() || '';
