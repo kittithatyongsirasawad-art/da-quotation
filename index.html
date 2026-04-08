@@ -659,8 +659,9 @@
 
     // ── SAVE RECORD DETAIL (full JSON) ────────────────────────────
     } else if (action === 'save_record_detail') {
-      var id     = String(e.parameter.id     || '');
-      var detail = String(e.parameter.detail || '');
+      var d      = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      var id     = String(d.id     || '');
+      var detail = String(d.detail || '');
       if (!id || !detail) {
         result = { ok: false, error: 'Missing id or detail' };
       } else {
@@ -2171,18 +2172,9 @@ async function saveRecord() {
 
 
 async function saveRecordDetail(url, id, detailJSON) {
-  // Send full detail as a single call using 'detail' URL param
-  // If too large for one call, split by packages and send smallest unit first
-  const MAX = 3000; // safe encoded chars per call
-  if (encodeURIComponent(detailJSON).length <= MAX * 2) {
-    // Normal case — send in one call
-    await sheetCall(url, 'save_record_detail', null, { id, detail: detailJSON });
-  } else {
-    // Large record — save packages in batches, then merge in GAS
-    // For now just send what fits; full packages will still be in packagesSnapshot
-    const shortened = detailJSON.substring(0, MAX);
-    await sheetCall(url, 'save_record_detail', null, { id, detail: shortened });
-  }
+  // Use payload param — same pattern as all other writes, no double-encoding
+  // payload is JSON-stringified then encodeURIComponent once in sheetCall
+  await sheetCall(url, 'save_record_detail', { id, detail: detailJSON });
 }
 
 
@@ -2362,7 +2354,7 @@ function sheetCall(url, action, payload, extraParams) {
 
     const params = new URLSearchParams({ action, callback: cbName });
     if (payload)     params.set('payload', encodeURIComponent(JSON.stringify(payload)));
-    if (extraParams) Object.entries(extraParams).forEach(([k,v]) => params.set(k, encodeURIComponent(String(v))));
+    if (extraParams) Object.entries(extraParams).forEach(([k,v]) => params.set(k, String(v)));
 
     const script   = document.createElement('script');
     script.id      = cbName;
@@ -2621,8 +2613,9 @@ function copyGASCode() {
 
     // ── SAVE RECORD DETAIL (full JSON) ────────────────────────────
     } else if (action === 'save_record_detail') {
-      var id     = String(e.parameter.id     || '');
-      var detail = String(e.parameter.detail || '');
+      var d      = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      var id     = String(d.id     || '');
+      var detail = String(d.detail || '');
       if (!id || !detail) {
         result = { ok: false, error: 'Missing id or detail' };
       } else {
