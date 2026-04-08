@@ -2033,21 +2033,41 @@ function saveRecords() {
 
 async function fetchRecordsFromSheets() {
   const url = getGasUrl();
-  if (!url || url === 'YOUR_APPS_SCRIPT_URL_HERE') return;
+  if (!url || url === 'YOUR_APPS_SCRIPT_URL_HERE') {
+    const tbody = document.getElementById('recordsTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--ink-light);">No Google Sheets URL configured. Go to ⚙ Settings to connect.</td></tr>';
+    return;
+  }
   const tbody = document.getElementById('recordsTableBody');
   if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--ink-light);">⏳ Loading from Google Sheets…</td></tr>';
   try {
     const res = await sheetCall(url, 'get_records');
-    if (res.records) {
-      // Parse packagesJSON — supports both old format (array) and new format (object with all fields)
-      // Keep legacyJSON on each record so restoreRecord can use it as fallback
+    if (res && res.records) {
       records = res.records.map(r => ({ ...r, packagesSnapshot: [], legacyJSON: r.legacyJSON || '' }));
       updateRecordsBadge();
       renderRecordsTable();
       updateSyncStatus('connected');
+    } else if (res && res.error) {
+      throw new Error('Sheets error: ' + res.error);
+    } else {
+      // Empty sheet — no records yet
+      records = [];
+      updateRecordsBadge();
+      renderRecordsTable();
+      updateSyncStatus('connected');
     }
-  } catch(e) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--coral);">⚠ Could not load from Google Sheets. Check connection in ⚙ Settings.</td></tr>';
+  } catch(err) {
+    updateSyncStatus('disconnected');
+    const msg = err.message || 'Unknown error';
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:20px;">
+      <div style="color:var(--coral);font-weight:600;margin-bottom:8px;">⚠ Could not load records from Google Sheets</div>
+      <div style="font-size:12px;color:var(--ink-light);margin-bottom:12px;">Error: ${msg}</div>
+      <div style="font-size:12px;color:var(--ink-mid);">
+        Most likely cause: <strong>You need to create a new deployment</strong> after updating the Apps Script code.<br>
+        Go to Apps Script → Deploy → New deployment → copy the new URL → paste in ⚙ Settings.
+      </div>
+      <button class="btn btn-sm btn-outline" onclick="switchTab('settings')" style="margin-top:12px;">⚙ Go to Settings</button>
+    </td></tr>`;
   }
 }
 
@@ -2395,9 +2415,14 @@ async function testConnection() {
 
     if (dot) dot.className = 'sync-dot connected';
 
-    // Get record count
+    // Get records — load them into memory so Records tab shows immediately
     const recRes = await sheetCall(url, 'get_records');
-    const count  = recRes.records ? recRes.records.length : 0;
+    if (recRes && recRes.records) {
+      records = recRes.records.map(r => ({ ...r, packagesSnapshot: [], legacyJSON: r.legacyJSON || '' }));
+      updateRecordsBadge();
+      renderRecordsTable();
+    }
+    const count = records.length;
     if (lbl) lbl.textContent = '✓ Connected! ' + count + ' record(s) in Google Sheets.';
     updateSyncStatus('connected');
 
