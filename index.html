@@ -79,7 +79,8 @@
   .pkg-area{padding:20px 22px;}
   .pkg-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
   .pkg-top h3{font-family:'DM Serif Display',serif;font-size:17px;}
-  .pkg-card{background:#fff;border:1.5px solid var(--border);border-radius:11px;margin-bottom:14px;overflow:hidden;transition:box-shadow .2s;}
+  .pkg-card{background:#fff;border:1.5px solid var(--border);border-radius:11px;margin-bottom:14px;overflow:hidden;transition:box-shadow .2s, border-color .2s;}
+  .pkg-card.pkg-active{border-color:var(--teal);border-width:2px;box-shadow:0 0 0 3px var(--teal-light);}
   .pkg-card:hover{box-shadow:0 3px 14px rgba(0,0,0,.07);}
   .pkg-card-hdr{display:flex;align-items:center;padding:12px 16px;background:var(--teal-light);border-bottom:1.5px solid var(--border);gap:10px;}
   .pkg-badge{background:var(--teal);color:#fff;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
@@ -329,6 +330,7 @@
         <button class="fbtn" onclick="setFilter('unit',this)">Per Unit Only</button>
         <button class="fbtn" onclick="setFilter('MLL',this)">MLL</button>
       </div>
+      <div id="catalog-target-label" style="display:none;margin-top:8px;padding:5px 10px;background:var(--teal-light);border:1.5px solid var(--teal);border-radius:6px;font-size:12px;font-weight:600;color:var(--teal-dark);"></div>
     </div>
     <div class="catalog-list" id="catalogList"></div>
   </div>
@@ -438,7 +440,7 @@
               <div class="sync-dot" id="syncDot"></div>
               <span id="syncLabel">Not connected to Google Sheets</span>
             </div>
-            <button class="btn btn-sm btn-outline" onclick="syncAllToSheets()" id="syncBtn" style="display:none;">↑ Sync All</button>
+            <button class="btn btn-sm btn-outline" onclick="fetchRecordsFromSheets()" id="syncBtn" style="display:none;">↻ Refresh from Sheets</button>
             <button class="btn btn-sm btn-primary" onclick="saveRecord()">+ Save Current</button>
           </div>
         </div>
@@ -634,6 +636,20 @@
         for (let i = 1; i < rows.length; i++) {
           if (String(rows[i][0]) === String(d.id)) {
             sh.getRange(i+1, 8).setValue(d.status);
+            break;
+          }
+        }
+      }
+      result = { ok: true };
+
+    } else if (action === 'delete_record') {
+      const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      const sh = ss.getSheetByName('QuotationRecords');
+      if (sh) {
+        const rows = sh.getDataRange().getValues();
+        for (let i = rows.length - 1; i >= 1; i--) {
+          if (String(rows[i][0]) === String(d.id)) {
+            sh.deleteRow(i + 1);
             break;
           }
         }
@@ -838,37 +854,133 @@ const CATALOG = [
 let packages = [];
 let activeFilter = 'all';
 let pkgCounter = 0;
+let activePackageId = null; // which package catalog items are added to
 
 // ═══════════════════════════════════════════════
-// COST ENGINE
+// COST ENGINE — with cross-package shared lump sum
 // ═══════════════════════════════════════════════
-function calcItemCost(code, costNC, pax) {
-  const pair = LUMP_PAIRS[code];
+
+// Build a lookup of shared lump overrides for ALL packages combined.
+// Call this once before rendering/calculating any package.
+// Returns: Map of { [pkgId_code]: overrideResult }
+function buildSharedLumpMap(pkgList) {
+  const map = {};  // key: pkgId+'|'+code → { effectiveCost, perUnitTotal, lumpShare, remaining, isLumpApplied, isAboveThreshold, combinedPax, mode }
+
+  // Group lump-eligible items across all packages
+  const byCode = {};
+  pkgList.forEach(pkg => {
+    pkg.items.forEach(item => {
+      if (!LUMP_PAIRS[item.code]) return;
+      if (!byCode[item.code]) byCode[item.code] = [];
+      byCode[item.code].push({ pkgId: pkg.id, pax: pkg.pax, costNC: item.costNC });
+    });
+  });
+
+  Object.entries(byCode).forEach(([code, entries]) => {
+    const pair         = LUMP_PAIRS[code];
+    const combinedPax  = entries.reduce((s, e) => s + e.pax, 0);
+    const lumpCostNC   = pair.lumpCostNC;
+    const threshold    = pair.threshold;
+    const totalPerUnit = entries.reduce((s, e) => s + e.pax * e.costNC, 0);
+
+    entries.forEach(e => {
+      const key        = e.pkgId + '|' + code;
+      const perUnitTotal = e.pax * e.costNC;
+
+      if (combinedPax >= threshold) {
+        // Combined pax meets or exceeds threshold → pure per-unit for all
+        map[key] = {
+          effectiveCost:    perUnitTotal,
+          perUnitTotal,
+          lumpShare:        0,
+          remaining:        0,
+          isLumpApplied:    false,
+          isAboveThreshold: true,
+          combinedPax,
+          mode: 'above_threshold'
+        };
+      } else if (totalPerUnit < lumpCostNC) {
+        // Combined pax below threshold AND per-unit total < lump cost → lump applies
+        // Each package pays proportional share: (pax_i / combinedPax) × lumpCostNC
+        const lumpShare = (e.pax / combinedPax) * lumpCostNC;
+        const remaining = lumpShare - perUnitTotal;
+        map[key] = {
+          effectiveCost:    Math.round(lumpShare * 100) / 100,
+          perUnitTotal:     Math.round(perUnitTotal * 100) / 100,
+          lumpShare:        Math.round(lumpShare * 100) / 100,
+          remaining:        Math.round(remaining * 100) / 100,
+          isLumpApplied:    true,
+          isAboveThreshold: false,
+          combinedPax,
+          lumpCostNC,
+          mode: entries.length > 1 ? 'lump_shared' : 'lump_solo'
+        };
+      } else {
+        // Per-unit total >= lump cost → use per-unit (cheaper)
+        map[key] = {
+          effectiveCost:    perUnitTotal,
+          perUnitTotal,
+          lumpShare:        0,
+          remaining:        0,
+          isLumpApplied:    false,
+          isAboveThreshold: false,
+          combinedPax,
+          mode: 'per_unit_cheaper'
+        };
+      }
+    });
+  });
+
+  return map;
+}
+
+// Shared map is rebuilt whenever packages change
+let _sharedLumpMap = {};
+function rebuildSharedLumpMap() { _sharedLumpMap = buildSharedLumpMap(packages); }
+
+function calcItemCostFromMap(pkgId, code, costNC, pax) {
+  const key = pkgId + '|' + code;
+  if (_sharedLumpMap[key]) return _sharedLumpMap[key];
+  // Non-lump item — simple per-unit
   const perUnitTotal = costNC * pax;
-  if (!pair) {
-    return { perUnitTotal, lumpFloor:0, remaining:0, effectiveCost:perUnitTotal, isLumpApplied:false, isAboveThreshold:false };
-  }
-  if (pax >= pair.threshold) {
-    // Above threshold: pure per-unit, lump no longer applies
-    return { perUnitTotal, lumpFloor:pair.lumpCostNC, remaining:0, effectiveCost:perUnitTotal, isLumpApplied:false, isAboveThreshold:true };
-  }
-  // Below threshold: lump sum is the floor
-  const remaining = Math.max(0, pair.lumpCostNC - perUnitTotal);
-  return { perUnitTotal, lumpFloor:pair.lumpCostNC, remaining, effectiveCost:pair.lumpCostNC, isLumpApplied:true, isAboveThreshold:false };
+  return { perUnitTotal, lumpShare:0, remaining:0, effectiveCost:perUnitTotal, isLumpApplied:false, isAboveThreshold:false, mode:'per_unit' };
 }
 
 function calcPkgTotals(pkg) {
   let totalCost = 0;
   const breakdown = pkg.items.map(item => {
-    const c = calcItemCost(item.code, item.costNC, pkg.pax);
+    const c = calcItemCostFromMap(pkg.id, item.code, item.costNC, pkg.pax);
     totalCost += c.effectiveCost;
     return { ...item, ...c };
   });
-  const spRounded = roundUp1(pkg.sellingPricePerPax);
+  const spRounded    = roundUp1(pkg.sellingPricePerPax);
   const totalRevenue = spRounded * pkg.pax;
-  const profit = totalRevenue - totalCost;
-  const margin = totalRevenue > 0 ? profit / totalRevenue : 0;
+  const profit       = totalRevenue - totalCost;
+  const margin       = totalRevenue > 0 ? profit / totalRevenue : 0;
   return { totalCost, totalRevenue, profit, margin, breakdown, spRounded };
+}
+
+// Compute shared lump summary: which items are shared and their combined stats
+function calcSharedLumpSummary() {
+  const summary = [];
+  const seen = new Set();
+  Object.entries(_sharedLumpMap).forEach(([key, val]) => {
+    const code = key.split('|')[1];
+    if (seen.has(code) || !val.isLumpApplied || val.mode !== 'lump_shared') return;
+    seen.add(code);
+    const pair = LUMP_PAIRS[code];
+    const sharedPkgs = packages.filter(p => p.items.find(i => i.code === code));
+    summary.push({
+      code,
+      itemName: CATALOG.find(c => c.code === code)?.name || code,
+      threshold:    pair.threshold,
+      lumpCostNC:   pair.lumpCostNC,
+      combinedPax:  val.combinedPax,
+      packages:     sharedPkgs.map(p => ({ name: p.name, pax: p.pax,
+        share: Math.round((p.pax / val.combinedPax) * pair.lumpCostNC * 100) / 100 }))
+    });
+  });
+  return summary;
 }
 
 // Round up to 1 decimal
@@ -881,14 +993,11 @@ function minMargin(revenue) {
   return 0.12;
 }
 
-// Suggested min selling price per pax for a given target margin, rounded up to 1 decimal
 function suggestPrice(totalCost, pax, targetMargin) {
   if (!pax) return 0;
   return roundUp1(totalCost / pax / (1 - targetMargin));
 }
 
-// For suggestion table: given a suggested price per pax, what is actual margin?
-// Revenue = round(price, 1 decimal) * pax
 function actualMarginAtPrice(price, pax, totalCost) {
   const rev = roundUp1(price) * pax;
   return rev > 0 ? (rev - totalCost) / rev : 0;
@@ -940,11 +1049,58 @@ function renderCatalog() {
 // ═══════════════════════════════════════════════
 function addPackage() {
   pkgCounter++;
-  packages.push({ id:'pkg_'+Date.now(), name:`Package ${pkgCounter}`, pax:100, sellingPricePerPax:0, items:[] });
+  const newPkg = { id:'pkg_'+Date.now(), name:`Package ${pkgCounter}`, pax:100, sellingPricePerPax:0, items:[] };
+  packages.push(newPkg);
+  activePackageId = newPkg.id; // new package becomes the target automatically
   renderPackages();
+  updateCatalogTarget();
 }
-function removePackage(id) { packages = packages.filter(p=>p.id!==id); renderPackages(); }
-function quickAdd(code) { if (!packages.length) addPackage(); addItemToPkg(packages[packages.length-1].id, code); }
+function removePackage(id) {
+  packages = packages.filter(p => p.id !== id);
+  if (activePackageId === id) {
+    activePackageId = packages.length ? packages[packages.length - 1].id : null;
+  }
+  renderPackages();
+  updateCatalogTarget();
+}
+function quickAdd(code) {
+  if (!packages.length) addPackage();
+  // Use active package, or fall back to last package
+  const targetId = (activePackageId && packages.find(p => p.id === activePackageId))
+    ? activePackageId
+    : packages[packages.length - 1].id;
+  // Auto-set active if not set
+  if (!activePackageId) setActivePackage(packages[packages.length - 1].id);
+  addItemToPkg(targetId, code);
+}
+
+function setActivePackage(pkgId) {
+  activePackageId = pkgId;
+  updateCatalogTarget();
+  // Highlight the active package card
+  document.querySelectorAll('.pkg-card').forEach(el => el.classList.remove('pkg-active'));
+  const card = document.getElementById('pkgcard_' + pkgId);
+  if (card) card.classList.add('pkg-active');
+  // Update all "Add items here" buttons
+  document.querySelectorAll('.set-active-btn').forEach(btn => {
+    const isActive = btn.dataset.pkgid === pkgId;
+    btn.textContent = isActive ? '✓ Adding here' : '➕ Add items here';
+    btn.classList.toggle('btn-primary', isActive);
+    btn.classList.toggle('btn-outline', !isActive);
+  });
+}
+
+function updateCatalogTarget() {
+  const el = document.getElementById('catalog-target-label');
+  if (!el) return;
+  const pkg = packages.find(p => p.id === activePackageId);
+  if (pkg) {
+    el.textContent = '➕ Adding to: ' + pkg.name;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
 function addItemToPkg(pkgId, code) {
   const pkg = packages.find(p=>p.id===pkgId);
   const ref = CATALOG.find(i=>i.code===code);
@@ -974,6 +1130,7 @@ function updateName(pkgId, val) { const pkg=packages.find(p=>p.id===pkgId); if(p
 
 // Lightweight update — only replaces the totals/suggestion block, never touches inputs
 function refreshPkgTotals(pkgId) {
+  rebuildSharedLumpMap(); // pax change affects all shared lump items
   const pkg = packages.find(p=>p.id===pkgId);
   if (!pkg) return;
   const t = calcPkgTotals(pkg);
@@ -1008,12 +1165,18 @@ function refreshPkgTotals(pkgId) {
 // ═══════════════════════════════════════════════
 function buildItemRows(pkg, t) {
   return t.breakdown.map(item => {
+    const pair = LUMP_PAIRS[item.code];
     let statusTag = '', remNote = '';
     if (item.isLumpApplied) {
-      statusTag = `<span class="lump-floor-badge">⚡ Lump floor — ${pkg.pax} pax &lt; ${LUMP_PAIRS[item.code].threshold} threshold</span>`;
-      remNote   = `<div class="rem-note">฿${fmtN(item.perUnitTotal)} per-unit + ฿${fmtN(item.remaining)} remaining = ฿${fmtN(item.effectiveCost)} lump floor</div>`;
+      const isShared = item.mode === 'lump_shared';
+      const sharedNote = isShared
+        ? ` — shared across ${packages.filter(p=>p.items.find(i=>i.code===item.code)).length} packages (combined ${item.combinedPax} pax)`
+        : ` — ${pkg.pax} pax < ${pair.threshold} threshold`;
+      statusTag = `<span class="lump-floor-badge">⚡ Lump${isShared?' shared':'floor'}${sharedNote}</span>`;
+      remNote   = `<div class="rem-note">฿${fmtN(item.perUnitTotal)} per-unit + ฿${fmtN(item.remaining)} lump top-up = ฿${fmtN(item.effectiveCost)} this package's share</div>`;
     } else if (item.isAboveThreshold) {
-      statusTag = `<span class="above-thresh">✓ Above threshold — pure per-unit</span>`;
+      const isShared = packages.filter(p=>p.items.find(i=>i.code===item.code)).length > 1;
+      statusTag = `<span class="above-thresh">✓ ${isShared?`Combined ${item.combinedPax} pax ≥ ${pair.threshold} threshold — pure per-unit`:'Above threshold — pure per-unit'}</span>`;
     }
     return `<tr class="${item.isLumpApplied?'lump-floor-row':''}">
       <td><span class="icode" style="font-size:10px;">${item.code}</span></td>
@@ -1074,11 +1237,35 @@ function buildTotalsHTML(pkg, t) {
     </div>`;
 }
 
+// ─── Shared lump summary panel (shown in Preview and at top of packages area) ───
+function buildSharedLumpSummaryHTML() {
+  const summary = calcSharedLumpSummary();
+  if (!summary.length) return '';
+  return `<div style="background:#fffbeb;border:1.5px solid #fbbf24;border-radius:9px;padding:14px 16px;margin-bottom:14px;">
+    <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:10px;">⚡ Cross-Package Lump Sum Sharing</div>
+    ${summary.map(s => `
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12.5px;font-weight:600;color:var(--ink);">${s.itemName} <span style="font-size:11px;color:var(--ink-light);">(${s.code})</span></div>
+        <div style="font-size:11.5px;color:var(--ink-mid);margin-top:3px;">
+          Combined ${s.combinedPax} pax across ${s.packages.length} packages &lt; ${s.threshold} threshold
+          → Lump cost ฿${fmtN(s.lumpCostNC)} split proportionally:
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+          ${s.packages.map(p => `<span style="background:white;border:1px solid #fcd34d;border-radius:6px;padding:3px 10px;font-size:11.5px;">
+            <strong>${p.name}</strong> (${p.pax} pax) → ฿${fmtN(p.share)}
+          </span>`).join('')}
+        </div>
+      </div>`).join('')}
+    <div style="font-size:11px;color:#92400e;margin-top:4px;">Total lump cost paid = ฿${fmtN(summary.reduce((s,i)=>s+i.lumpCostNC,0))} (exact, no overpayment)</div>
+  </div>`;
+}
+
 // ═══════════════════════════════════════════════
 // Lightweight refresh — updates totals/rows WITHOUT re-rendering inputs
 // Called on pax/SP change so focus is never lost
 // ═══════════════════════════════════════════════
 function refreshPkgTotals(pkgId) {
+  rebuildSharedLumpMap(); // pax change affects all shared lump items
   const pkg = packages.find(p=>p.id===pkgId);
   if (!pkg) return;
   const t = calcPkgTotals(pkg);
@@ -1104,12 +1291,15 @@ function refreshPkgTotals(pkgId) {
 }
 
 function renderPackages() {
+  rebuildSharedLumpMap(); // recalculate cross-package lump sharing
   const c = document.getElementById('packagesContainer');
   if (!packages.length) {
     c.innerHTML = `<div class="no-pkg-msg">No packages yet. Click <strong>"+ Add Package"</strong> then pick items from the catalog.</div>`;
     return;
   }
-  c.innerHTML = packages.map((pkg, pi) => {
+  // Shared lump summary banner (shown above all packages if any sharing exists)
+  const sharedBanner = buildSharedLumpSummaryHTML();
+  c.innerHTML = (sharedBanner ? `<div id="shared-lump-banner">${sharedBanner}</div>` : '') + packages.map((pkg, pi) => {
     const t = calcPkgTotals(pkg);
 
     const itemsSection = pkg.items.length === 0
@@ -1127,12 +1317,19 @@ function renderPackages() {
       ? `<div class="pkg-totals" id="totals-${pkg.id}">${buildTotalsHTML(pkg, t)}</div>`
       : `<div id="totals-${pkg.id}"></div>`;
 
-    return `<div class="pkg-card">
+    const isActivePkg = activePackageId === pkg.id || (!activePackageId && pi === packages.length - 1);
+    return `<div class="pkg-card ${isActivePkg?'pkg-active':''}" id="pkgcard_${pkg.id}" onclick="setActivePackage('${pkg.id}')">
       <div class="pkg-card-hdr">
         <span class="pkg-badge">PKG ${pi+1}</span>
-        <input class="pkg-name-inp" value="${pkg.name}" oninput="updateName('${pkg.id}',this.value)" placeholder="Package name…">
+        <input class="pkg-name-inp" value="${pkg.name}" oninput="updateName('${pkg.id}',this.value)" placeholder="Package name…" onclick="event.stopPropagation()">
         <div class="pkg-actions">
-          <button class="btn btn-sm btn-danger" onclick="removePackage('${pkg.id}')">✕ Remove</button>
+          <button class="btn btn-sm set-active-btn ${isActivePkg?'btn-primary':'btn-outline'}"
+            data-pkgid="${pkg.id}"
+            onclick="event.stopPropagation();setActivePackage('${pkg.id}')"
+            title="Click to add catalog items to this package">
+            ${isActivePkg?'✓ Adding here':'➕ Add items here'}
+          </button>
+          <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();removePackage('${pkg.id}')">✕ Remove</button>
         </div>
       </div>
       <div class="pkg-body">
@@ -1200,6 +1397,7 @@ function renderPreview() {
       ${ok?'✓ Quotation meets minimum margin requirement':`⚠ Overall margin ${(margin*100).toFixed(1)}% is below the required ${(minM*100).toFixed(0)}% for ฿${fmtN(totalRev)} total revenue`}
     </div>
     <h4 style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:14px;">Package Breakdown (Internal)</h4>
+    ${buildSharedLumpSummaryHTML()}
     ${packages.map(pkg => {
       const t = calcPkgTotals(pkg);
       const mc2 = mClass(t.margin);
@@ -1500,7 +1698,7 @@ function switchTab(name) {
   // Render hooks
   if (name === 'preview')   renderPreview();
   if (name === 'quotation') renderQuotation();
-  if (name === 'records')   renderRecordsTable();
+  if (name === 'records')   { renderRecordsTable(); fetchRecordsFromSheets(); }
   if (name === 'catalog')   renderCatalogManager();
   if (name === 'settings') {
     const activeUrl = getGasUrl();
@@ -1549,7 +1747,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPackages();
   renderRecordsTable();
   renderCatalogManager();
-  // Pre-fill and auto-connect Google Sheets
+  // Auto-connect and fetch records from Google Sheets on load
   const activeUrl = getGasUrl();
   if (activeUrl && activeUrl !== 'YOUR_APPS_SCRIPT_URL_HERE') {
     const urlEl = document.getElementById('gasUrl');
@@ -1557,10 +1755,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const syncBtn = document.getElementById('syncBtn');
     if (syncBtn) syncBtn.style.display = '';
     updateSyncStatus('connected');
-    // Auto test connection silently on load
-    setTimeout(() => {
-      testConnection().catch(() => {});
-    }, 500);
+    // Fetch records from Sheets (also verifies connection)
+    setTimeout(() => fetchRecordsFromSheets(), 600);
   }
 });
 
@@ -1706,14 +1902,35 @@ function importCatalogCSV(event) {
 // ═══════════════════════════════════════════════════════
 let records = [];
 
+// Records are stored ONLY in Google Sheets — no localStorage
+// 'records' is an in-memory cache refreshed from Sheets on load and tab switch
 function loadRecords() {
-  try { records = JSON.parse(localStorage.getItem('da_records') || '[]'); } catch(e) { records = []; }
+  records = []; // start empty; will be populated by fetchRecordsFromSheets()
   updateRecordsBadge();
+  fetchRecordsFromSheets();  // async — fills table when Sheets responds
 }
 
 function saveRecords() {
-  localStorage.setItem('da_records', JSON.stringify(records));
+  // No-op: records live in Sheets only. In-memory cache (records[]) is updated directly.
   updateRecordsBadge();
+}
+
+async function fetchRecordsFromSheets() {
+  const url = getGasUrl();
+  if (!url || url === 'YOUR_APPS_SCRIPT_URL_HERE') return;
+  const tbody = document.getElementById('recordsTableBody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--ink-light);">⏳ Loading from Google Sheets…</td></tr>';
+  try {
+    const res = await sheetCall(url, 'get_records');
+    if (res.records) {
+      records = res.records;
+      updateRecordsBadge();
+      renderRecordsTable();
+      updateSyncStatus('connected');
+    }
+  } catch(e) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--coral);">⚠ Could not load from Google Sheets. Check connection in ⚙ Settings.</td></tr>';
+  }
 }
 
 function updateRecordsBadge() {
@@ -1747,7 +1964,14 @@ function updateSyncStatus(state) {
 
 
 
-function saveRecord() {
+async function saveRecord() {
+  const url = getGasUrl();
+  if (!url || url === 'YOUR_APPS_SCRIPT_URL_HERE') {
+    showToast('⚠ No Google Sheets connected — go to ⚙ Settings first', 'error');
+    return;
+  }
+  if (!packages.length) { showToast('No packages to save', 'error'); return; }
+
   const quotNo  = v('quotNo') || ('QT-' + new Date().getFullYear() + '-' + String(records.length+1).padStart(3,'0'));
   const company = v('clientCompany') || 'Unknown Client';
   const prepBy  = v('preparedBy') || '';
@@ -1755,56 +1979,76 @@ function saveRecord() {
   let totalCost = 0; packages.forEach(p => { totalCost += calcPkgTotals(p).totalCost; });
   const margin  = totalRev > 0 ? (totalRev - totalCost) / totalRev : 0;
 
-  if (!packages.length) { showToast('No packages to save', 'error'); return; }
-
   const existing = records.findIndex(r => r.quotNo === quotNo);
   const rec = {
-    id:          existing >= 0 ? records[existing].id : 'rec_' + Date.now(),
+    id:               existing >= 0 ? records[existing].id : 'rec_' + Date.now(),
     quotNo,
-    date:        v('quotDate') || new Date().toISOString().split('T')[0],
-    client:      company,
-    contact:     v('clientContact'),
-    email:       v('clientEmail'),
-    pkgCount:    packages.length,
-    totalRevenue:totalRev,
-    margin:      margin,
-    status:      'Draft',
-    preparedBy:  prepBy,
-    savedAt:     new Date().toISOString(),
+    date:             v('quotDate') || new Date().toISOString().split('T')[0],
+    client:           company,
+    contact:          v('clientContact'),
+    email:            v('clientEmail'),
+    pkgCount:         packages.length,
+    totalRevenue:     totalRev,
+    margin:           margin,
+    status:           existing >= 0 ? (records[existing].status || 'Draft') : 'Draft',
+    preparedBy:       prepBy,
+    savedAt:          new Date().toISOString(),
     packagesSnapshot: packages.map(p => ({ name:p.name, pax:p.pax, sp:p.sellingPricePerPax, items:p.items.map(i=>i.code) }))
   };
 
+  // Optimistic update: add to local cache and re-render immediately
   if (existing >= 0) records[existing] = rec; else records.unshift(rec);
-  saveRecords(); renderRecordsTable();
+  updateRecordsBadge();
+  renderRecordsTable();
+  updateSyncStatus('syncing');
 
-  // Sync to Sheets if connected
-  const url = getGasUrl();
-  if (url) {
-    updateSyncStatus('syncing');
-    sheetCall(url, 'save_record', {
+  try {
+    await sheetCall(url, 'save_record', {
       id: rec.id, quotNo: rec.quotNo, date: rec.date, client: rec.client,
       pkgCount: rec.pkgCount, totalRevenue: rec.totalRevenue,
       margin: (margin*100).toFixed(1)+'%',
       status: rec.status, preparedBy: rec.preparedBy,
       packagesJSON: JSON.stringify(rec.packagesSnapshot)
-    }).then(() => { updateSyncStatus('connected'); showToast('Saved & synced to Google Sheets ✓', 'success'); })
-      .catch(() => { updateSyncStatus('connected'); showToast('Saved locally (Sheets sync failed)', ''); });
-  } else {
-    showToast('Record saved: ' + quotNo, 'success');
+    });
+    updateSyncStatus('connected');
+    showToast('✓ Saved to Google Sheets — ' + quotNo, 'success');
+  } catch(e) {
+    updateSyncStatus('disconnected');
+    showToast('⚠ Save failed: ' + e.message, 'error');
+    // Roll back optimistic update
+    if (existing >= 0) records[existing] = records[existing];
+    else records = records.filter(r => r.id !== rec.id);
+    renderRecordsTable();
   }
 }
 
-function updateRecordStatus(id, newStatus) {
-  const rec = records.find(r=>r.id===id); if (!rec) return;
-  rec.status = newStatus; saveRecords(); renderRecordsTable();
+async function updateRecordStatus(id, newStatus) {
+  const rec = records.find(r => r.id === id); if (!rec) return;
+  const oldStatus = rec.status;
+  rec.status = newStatus;
+  renderRecordsTable(); // optimistic
   const url = getGasUrl();
-  if (url) sheetCall(url, 'update_status', { id, status: newStatus }).catch(() => {});
+  if (url) {
+    try {
+      await sheetCall(url, 'update_status', { id, status: newStatus });
+    } catch(e) {
+      rec.status = oldStatus; // roll back
+      renderRecordsTable();
+      showToast('Status update failed', 'error');
+    }
+  }
 }
 
-function deleteRecord(id) {
-  if (!confirm('Delete this record?')) return;
-  records = records.filter(r=>r.id!==id);
-  saveRecords(); renderRecordsTable(); showToast('Record deleted', '');
+async function deleteRecord(id) {
+  if (!confirm('Delete this record? It will be removed from Google Sheets.')) return;
+  const url = getGasUrl();
+  records = records.filter(r => r.id !== id);
+  updateRecordsBadge();
+  renderRecordsTable();
+  showToast('Record deleted', '');
+  if (url) {
+    try { await sheetCall(url, 'delete_record', { id }); } catch(e) { /* non-critical */ }
+  }
 }
 
 function renderRecordsTable() {
@@ -2049,9 +2293,11 @@ function downloadFile(name, content, type) {
 }
 
 function exportLocalData() {
-  const data = { records, customItems, exportedAt: new Date().toISOString(), version:'1.0' };
-  downloadFile('da_quotation_data.json', JSON.stringify(data, null, 2), 'application/json');
-  showToast('Data exported', 'success');
+  const data = { records, customItems, exportedAt: new Date().toISOString(), version:'1.0',
+                 note: 'Records exported from Google Sheets cache' };
+  downloadFile('da_quotation_data_' + new Date().toISOString().slice(0,10) + '.json',
+               JSON.stringify(data, null, 2), 'application/json');
+  showToast('Data exported (' + records.length + ' records)', 'success');
 }
 
 function importLocalData(event) {
@@ -2080,7 +2326,6 @@ function importLocalData(event) {
 
 function clearAllLocalData() {
   if (!confirm('Clear ALL local data (records + custom catalog)? This cannot be undone.')) return;
-  localStorage.removeItem('da_records');
   localStorage.removeItem('da_custom_catalog');
   localStorage.removeItem('da_gas_url');
   records = []; customItems = [];
@@ -2166,6 +2411,20 @@ function copyGASCode() {
         for (let i = 1; i < rows.length; i++) {
           if (String(rows[i][0]) === String(d.id)) {
             sh.getRange(i+1, 8).setValue(d.status);
+            break;
+          }
+        }
+      }
+      result = { ok: true };
+
+    } else if (action === 'delete_record') {
+      const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      const sh = ss.getSheetByName('QuotationRecords');
+      if (sh) {
+        const rows = sh.getDataRange().getValues();
+        for (let i = rows.length - 1; i >= 1; i--) {
+          if (String(rows[i][0]) === String(d.id)) {
+            sh.deleteRow(i + 1);
             break;
           }
         }
