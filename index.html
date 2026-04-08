@@ -848,7 +848,7 @@
 // Paste your deployed Web App URL here once — everyone who opens
 // this file will be connected automatically, no setup needed.
 // ═══════════════════════════════════════════════
-const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzRwjknjdE9YvqP533gLpxScj87EfOXgJJEO93z7zkZkxpyQFNWnTHyTpsO6-bQDoW8AQ/exec';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwWcGZNROi9I469lO1FpblUM4aqNhpR13P7xovI-uBsFoEPPV793AYcnq75EnnqgNI/exec';
 
 // ═══════════════════════════════════════════════
 // LUMP SUM PAIRS
@@ -2462,13 +2462,16 @@ function sheetCall(url, action, payload, extraParams) {
       if (el) el.remove();
     }
 
-    const params = new URLSearchParams({ action, callback: cbName });
-    if (payload)     params.set('payload', encodeURIComponent(JSON.stringify(payload)));
-    if (extraParams) Object.entries(extraParams).forEach(([k,v]) => params.set(k, String(v)));
+    // Build URL manually to avoid double-encoding of Thai text
+    // URLSearchParams.toString() re-encodes % signs, bloating Thai characters 1.67x
+    let fullUrl = url + '?action=' + encodeURIComponent(action) + '&callback=' + encodeURIComponent(cbName);
+    if (payload)     fullUrl += '&payload='    + encodeURIComponent(JSON.stringify(payload));
+    if (extraParams) Object.entries(extraParams).forEach(([k,v]) => {
+      fullUrl += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(String(v));
+    });
 
     const script   = document.createElement('script');
     script.id      = cbName;
-    const fullUrl  = url + '?' + params.toString();
     script.src     = fullUrl;
     script.onerror = () => {
       cleanup();
