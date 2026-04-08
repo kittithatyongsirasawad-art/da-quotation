@@ -568,9 +568,9 @@
   let result     = {};
 
   try {
-    // ── READS ──────────────────────────────────────────
+
     if (action === 'ping') {
-      result = { ok: true, message: 'Connected to Google Sheets!' };
+      result = { ok: true, message: 'Connected!' };
 
     } else if (action === 'get_records') {
       const sh = ss.getSheetByName('QuotationRecords');
@@ -578,12 +578,28 @@
       else {
         const rows = sh.getDataRange().getValues().slice(1);
         result = { records: rows.map(r => ({
-          id:String(r[0]), quotNo:String(r[1]), date:String(r[2]),
-          client:String(r[3]), pkgCount:Number(r[4]), totalRevenue:Number(r[5]),
-          margin:String(r[6]), status:String(r[7]),
-          preparedBy:String(r[8]), savedAt:String(r[9]),
-          packagesJSON:String(r[10]||'')
+          id:          String(r[0]),
+          quotNo:      String(r[1]),
+          date:        String(r[2]),
+          client:      String(r[3]),
+          pkgCount:    Number(r[4]),
+          totalRevenue:Number(r[5]),
+          margin:      String(r[6]),
+          status:      String(r[7]),
+          preparedBy:  String(r[8]),
+          savedAt:     String(r[9])
         }))};
+      }
+
+    } else if (action === 'get_record_detail') {
+      // Returns full detail JSON for one record by id
+      const id = e.parameter.id || '';
+      const sh = ss.getSheetByName('RecordDetails');
+      if (!sh) { result = { detail: null }; }
+      else {
+        const rows = sh.getDataRange().getValues().slice(1);
+        const row  = rows.find(r => String(r[0]) === id);
+        result = { detail: row ? String(row[1]) : null };
       }
 
     } else if (action === 'get_catalog') {
@@ -598,22 +614,65 @@
         }))};
       }
 
-    // ── WRITES (via GET + payload param) ──────────────
     } else if (action === 'save_record') {
+      // Save summary row to QuotationRecords sheet
       const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
       let sh = ss.getSheetByName('QuotationRecords');
       if (!sh) {
         sh = ss.insertSheet('QuotationRecords');
-        sh.appendRow(['ID','QuotNo','Date','Client','Packages','TotalRevenue','Margin','Status','PreparedBy','SavedAt','PackagesJSON']);
+        sh.appendRow(['ID','QuotNo','Date','Client','Packages','TotalRevenue','Margin','Status','PreparedBy','SavedAt']);
         sh.setFrozenRows(1);
       }
       const rows = sh.getDataRange().getValues().slice(1);
       const idx  = rows.findIndex(r => String(r[0]) === String(d.id));
       const row  = [d.id, d.quotNo, d.date, d.client, d.pkgCount,
-                    d.totalRevenue, d.margin, d.status||'Draft', d.preparedBy||'',
-                    new Date().toISOString(), d.packagesJSON||''];
-      if (idx >= 0) { sh.getRange(idx+2, 1, 1, row.length).setValues([row]); }
+                    d.totalRevenue, d.margin, d.status||'Draft',
+                    d.preparedBy||'', new Date().toISOString()];
+      if (idx >= 0) { sh.getRange(idx+2,1,1,row.length).setValues([row]); }
       else          { sh.appendRow(row); }
+      result = { ok: true };
+
+    } else if (action === 'save_record_detail') {
+      // Save full detail JSON to RecordDetails sheet (separate from summary)
+      // The detail JSON is chunked to stay within URL limits
+      const id    = e.parameter.id || '';
+      const chunk = e.parameter.chunk || '';
+      const idx_c = Number(e.parameter.idx || 0);
+      const total = Number(e.parameter.total || 1);
+
+      let sh = ss.getSheetByName('RecordDetails');
+      if (!sh) {
+        sh = ss.insertSheet('RecordDetails');
+        sh.appendRow(['ID','DetailJSON','UpdatedAt']);
+        sh.setFrozenRows(1);
+      }
+
+      // Use PropertiesService to accumulate chunks
+      const props = PropertiesService.getScriptProperties();
+      const key   = 'chunk_' + id;
+
+      if (total === 1) {
+        // Single chunk — write directly
+        const rows = sh.getDataRange().getValues().slice(1);
+        const ri   = rows.findIndex(r => String(r[0]) === id);
+        if (ri >= 0) { sh.getRange(ri+2,2).setValue(chunk); sh.getRange(ri+2,3).setValue(new Date().toISOString()); }
+        else         { sh.appendRow([id, chunk, new Date().toISOString()]); }
+        props.deleteProperty(key);
+      } else {
+        // Multi-chunk — accumulate in PropertiesService then flush on last chunk
+        const existing = props.getProperty(key) || '';
+        const updated  = existing + chunk;
+        if (idx_c < total - 1) {
+          props.setProperty(key, updated);
+        } else {
+          // Last chunk — write full assembled JSON
+          const rows = sh.getDataRange().getValues().slice(1);
+          const ri   = rows.findIndex(r => String(r[0]) === id);
+          if (ri >= 0) { sh.getRange(ri+2,2).setValue(updated); sh.getRange(ri+2,3).setValue(new Date().toISOString()); }
+          else         { sh.appendRow([id, updated, new Date().toISOString()]); }
+          props.deleteProperty(key);
+        }
+      }
       result = { ok: true };
 
     } else if (action === 'save_catalog_item') {
@@ -634,11 +693,8 @@
       const sh = ss.getSheetByName('QuotationRecords');
       if (sh) {
         const rows = sh.getDataRange().getValues();
-        for (let i = 1; i < rows.length; i++) {
-          if (String(rows[i][0]) === String(d.id)) {
-            sh.getRange(i+1, 8).setValue(d.status);
-            break;
-          }
+        for (let i=1; i<rows.length; i++) {
+          if (String(rows[i][0]) === String(d.id)) { sh.getRange(i+1,8).setValue(d.status); break; }
         }
       }
       result = { ok: true };
@@ -648,11 +704,16 @@
       const sh = ss.getSheetByName('QuotationRecords');
       if (sh) {
         const rows = sh.getDataRange().getValues();
-        for (let i = rows.length - 1; i >= 1; i--) {
-          if (String(rows[i][0]) === String(d.id)) {
-            sh.deleteRow(i + 1);
-            break;
-          }
+        for (let i=rows.length-1; i>=1; i--) {
+          if (String(rows[i][0]) === String(d.id)) { sh.deleteRow(i+1); break; }
+        }
+      }
+      // Also delete from RecordDetails
+      const sd = ss.getSheetByName('RecordDetails');
+      if (sd) {
+        const drows = sd.getDataRange().getValues();
+        for (let i=drows.length-1; i>=1; i--) {
+          if (String(drows[i][0]) === String(d.id)) { sd.deleteRow(i+1); break; }
         }
       }
       result = { ok: true };
@@ -660,6 +721,7 @@
     } else {
       result = { ok: false, error: 'Unknown action: ' + action };
     }
+
   } catch(err) {
     result = { ok: false, error: err.toString() };
   }
@@ -669,8 +731,7 @@
     return ContentService.createTextOutput(callback + '(' + json + ')')
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
-  return ContentService.createTextOutput(json)
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }</div>
 
           <div class="form-row" style="margin-top:14px;margin-bottom:8px;">
@@ -2003,14 +2064,14 @@ async function saveRecord() {
   }
   if (!packages.length) { showToast('No packages to save', 'error'); return; }
 
-  const quotNo  = v('quotNo') || ('QT-' + new Date().getFullYear() + '-' + String(records.length+1).padStart(3,'0'));
-  const company = v('clientCompany') || 'Unknown Client';
-  const prepBy  = v('preparedBy') || '';
-  let totalRev  = 0; packages.forEach(p => { totalRev += calcPkgTotals(p).totalRevenue; });
-  let totalCost = 0; packages.forEach(p => { totalCost += calcPkgTotals(p).totalCost; });
-  const margin  = totalRev > 0 ? (totalRev - totalCost) / totalRev : 0;
+  const quotNo      = v('quotNo') || ('QT-' + new Date().getFullYear() + '-' + String(records.length+1).padStart(3,'0'));
+  const company     = v('clientCompany') || 'Unknown Client';
+  const prepBy      = v('preparedBy')    || '';
+  let totalRev = 0; packages.forEach(p => { totalRev += calcPkgTotals(p).totalRevenue; });
+  let totalCost= 0; packages.forEach(p => { totalCost+= calcPkgTotals(p).totalCost; });
+  const margin = totalRev > 0 ? (totalRev - totalCost) / totalRev : 0;
+  const existing   = records.findIndex(r => r.quotNo === quotNo);
 
-  const existing = records.findIndex(r => r.quotNo === quotNo);
   const rec = {
     id:           existing >= 0 ? records[existing].id : 'rec_' + Date.now(),
     quotNo,
@@ -2025,71 +2086,73 @@ async function saveRecord() {
     validUntil:   v('quotValid')     || '',
     prepEmail:    v('prepEmail')     || '',
     prepPhone:    v('prepPhone')     || '',
+    quotNotes:    v('quotNotes')     || '',
+    quotTC:       v('quotTC')        || '',
     pkgCount:     packages.length,
     totalRevenue: totalRev,
-    margin:       margin,
+    margin,
     status:       existing >= 0 ? (records[existing].status || 'Draft') : 'Draft',
     preparedBy:   prepBy,
     savedAt:      new Date().toISOString(),
     packagesSnapshot: packages.map(p => ({
-      name: p.name,
-      pax:  p.pax,
-      sp:   p.sellingPricePerPax,
+      name: p.name, pax: p.pax, sp: p.sellingPricePerPax,
       items: p.items.map(i => ({
-        code:     i.code,
-        name:     i.name,
-        desc:     i.desc     || '',
-        costNC:   i.costNC,
-        provider: i.provider || 'MLL'
+        code: i.code, name: i.name, desc: i.desc||'', costNC: i.costNC, provider: i.provider||'MLL'
       }))
     }))
   };
 
-  // Optimistic update: add to local cache and re-render immediately
+  // Optimistic update
   if (existing >= 0) records[existing] = rec; else records.unshift(rec);
   updateRecordsBadge();
   renderRecordsTable();
   updateSyncStatus('syncing');
 
   try {
-    // Encode ALL restoreable fields into one JSON blob stored in PackagesJSON column
-    const fullRecordData = JSON.stringify({
-      packages:   rec.packagesSnapshot,
-      contact:    rec.contact    || '',
-      email:      rec.email      || '',
-      phone:      rec.phone      || '',
-      addr:       rec.addr       || '',
-      taxId:      rec.taxId      || '',
-      branch:     rec.branch     || '',
-      validUntil: rec.validUntil || '',
-      prepEmail:  rec.prepEmail  || '',
-      prepPhone:  rec.prepPhone  || '',
-      quotNotes:  v('quotNotes') || '',
-      quotTC:     v('quotTC')    || ''
-    });
+    // STEP 1: Save summary row (short — always fits in URL)
     await sheetCall(url, 'save_record', {
-      id:           rec.id,
-      quotNo:       rec.quotNo,
-      date:         rec.date,
-      client:       rec.client,
-      pkgCount:     rec.pkgCount,
-      totalRevenue: rec.totalRevenue,
-      margin:       (margin*100).toFixed(1)+'%',
-      status:       rec.status,
-      preparedBy:   rec.preparedBy,
-      packagesJSON: fullRecordData
+      id: rec.id, quotNo: rec.quotNo, date: rec.date, client: rec.client,
+      pkgCount: rec.pkgCount, totalRevenue: rec.totalRevenue,
+      margin: (margin*100).toFixed(1)+'%',
+      status: rec.status, preparedBy: rec.preparedBy
     });
+
+    // STEP 2: Save full detail JSON in chunks (handles large payloads)
+    const detail = JSON.stringify({
+      packages:   rec.packagesSnapshot,
+      contact:    rec.contact,    email:      rec.email,
+      phone:      rec.phone,      addr:       rec.addr,
+      taxId:      rec.taxId,      branch:     rec.branch,
+      validUntil: rec.validUntil, prepEmail:  rec.prepEmail,
+      prepPhone:  rec.prepPhone,  quotNotes:  rec.quotNotes,
+      quotTC:     rec.quotTC
+    });
+    await saveRecordDetail(url, rec.id, detail);
+
     updateSyncStatus('connected');
     showToast('✓ Saved to Google Sheets — ' + quotNo, 'success');
-  } catch(e) {
+  } catch(err) {
     updateSyncStatus('disconnected');
-    showToast('⚠ Save failed: ' + e.message, 'error');
-    // Roll back optimistic update
-    if (existing >= 0) records[existing] = records[existing];
-    else records = records.filter(r => r.id !== rec.id);
+    showToast('⚠ Save failed: ' + err.message, 'error');
+    if (existing < 0) records = records.filter(r => r.id !== rec.id);
     renderRecordsTable();
   }
 }
+
+// Send detail JSON in safe-sized chunks to avoid URL length limits
+async function saveRecordDetail(url, id, detailJSON) {
+  const CHUNK_SIZE = 1500; // safe chars per chunk after URL encoding
+  const chunks = [];
+  for (let i = 0; i < detailJSON.length; i += CHUNK_SIZE) {
+    chunks.push(detailJSON.slice(i, i + CHUNK_SIZE));
+  }
+  for (let i = 0; i < chunks.length; i++) {
+    await sheetCall(url, 'save_record_detail', null, {
+      id, chunk: chunks[i], idx: i, total: chunks.length
+    });
+  }
+}
+
 
 async function updateRecordStatus(id, newStatus) {
   const rec = records.find(r => r.id === id); if (!rec) return;
@@ -2161,31 +2224,61 @@ function renderRecordsTable() {
   }).join('');
 }
 
-function restoreRecord(id) {
+async function restoreRecord(id) {
   const rec = records.find(r => r.id === id);
   if (!rec) return;
 
-  // Restore form fields
-  const setV = (elId, val) => { const el = document.getElementById(elId); if (el && val !== undefined) el.value = val || ''; };
+  // Show loading state
+  showToast('Loading record…', '');
+
+  // Fetch full detail from Sheets (packages + all client fields)
+  const url = getGasUrl();
+  if (url) {
+    try {
+      const res = await sheetCall(url, 'get_record_detail', null, { id });
+      if (res.detail) {
+        try {
+          const parsed = JSON.parse(res.detail);
+          // Merge fetched detail into rec
+          if (parsed.packages)   rec.packagesSnapshot = parsed.packages;
+          if (parsed.contact    !== undefined) rec.contact    = parsed.contact;
+          if (parsed.email      !== undefined) rec.email      = parsed.email;
+          if (parsed.phone      !== undefined) rec.phone      = parsed.phone;
+          if (parsed.addr       !== undefined) rec.addr       = parsed.addr;
+          if (parsed.taxId      !== undefined) rec.taxId      = parsed.taxId;
+          if (parsed.branch     !== undefined) rec.branch     = parsed.branch;
+          if (parsed.validUntil !== undefined) rec.validUntil = parsed.validUntil;
+          if (parsed.prepEmail  !== undefined) rec.prepEmail  = parsed.prepEmail;
+          if (parsed.prepPhone  !== undefined) rec.prepPhone  = parsed.prepPhone;
+          if (parsed.quotNotes  !== undefined) rec.quotNotes  = parsed.quotNotes;
+          if (parsed.quotTC     !== undefined) rec.quotTC     = parsed.quotTC;
+        } catch(e) { /* parse error — use whatever is in rec already */ }
+      }
+    } catch(e) { /* network error — continue with cached data */ }
+  }
+
+  // Restore all form fields
+  const setV = (elId, val) => {
+    const el = document.getElementById(elId);
+    if (el) el.value = val || '';
+  };
   setV('quotNo',        rec.quotNo);
   setV('quotDate',      rec.date);
   setV('clientCompany', rec.client);
-  setV('clientContact', rec.contact);
-  setV('clientEmail',   rec.email);
-  setV('preparedBy',    rec.preparedBy);
-
-  // Also restore extended fields if present in record
-  setV('clientAddr',    rec.addr    || '');
-  setV('clientTaxId',   rec.taxId   || '');
-  setV('clientBranch',  rec.branch  || '');
-  setV('clientPhone',   rec.phone   || '');
+  setV('clientContact', rec.contact    || '');
+  setV('clientEmail',   rec.email      || '');
+  setV('preparedBy',    rec.preparedBy || '');
+  setV('clientAddr',    rec.addr       || '');
+  setV('clientTaxId',   rec.taxId      || '');
+  setV('clientBranch',  rec.branch     || '');
+  setV('clientPhone',   rec.phone      || '');
   setV('quotValid',     rec.validUntil || '');
   setV('prepEmail',     rec.prepEmail  || '');
   setV('prepPhone',     rec.prepPhone  || '');
   setV('quotNotes',     rec.quotNotes  || '');
   setV('quotTC',        rec.quotTC     || '');
 
-  // Restore packages from snapshot
+  // Restore packages
   packages = []; pkgCounter = 0;
   let restoredItems = 0, missingItems = 0;
 
@@ -2198,36 +2291,32 @@ function restoreRecord(id) {
       sellingPricePerPax: snap.sp   || 0,
       items:              []
     };
-
-    (snap.items || []).forEach(itemData => {
-      if (typeof itemData === 'string') {
-        // OLD FORMAT: itemData is just a code string — look up from catalog
-        const ref = CATALOG.find(i => i.code === itemData);
+    (snap.items || []).forEach(item => {
+      if (typeof item === 'string') {
+        // Old format: code string only
+        const ref = CATALOG.find(c => c.code === item);
         if (ref) {
           newPkg.items.push({ code:ref.code, name:ref.name, desc:ref.desc||'', costNC:ref.costNC, provider:ref.provider||'MLL' });
           restoredItems++;
         } else {
-          // Code not found in catalog — create a placeholder so data isn't lost
-          newPkg.items.push({ code:itemData, name:'[Item: ' + itemData + ']', desc:'', costNC:0, provider:'MLL' });
+          newPkg.items.push({ code:item, name:'['+item+']', desc:'', costNC:0, provider:'MLL' });
           missingItems++;
         }
       } else {
-        // NEW FORMAT: itemData has full details saved — use directly, no catalog lookup needed
+        // New format: full item object
         newPkg.items.push({
-          code:     itemData.code     || '',
-          name:     itemData.name     || itemData.code || '?',
-          desc:     itemData.desc     || '',
-          costNC:   itemData.costNC   || 0,
-          provider: itemData.provider || 'MLL'
+          code:     item.code     || '',
+          name:     item.name     || item.code || '?',
+          desc:     item.desc     || '',
+          costNC:   item.costNC   || 0,
+          provider: item.provider || 'MLL'
         });
         restoredItems++;
       }
     });
-
     packages.push(newPkg);
   });
 
-  // Set the first package as active target for catalog
   if (packages.length) {
     activePackageId = packages[0].id;
     updateCatalogTarget();
@@ -2237,16 +2326,16 @@ function restoreRecord(id) {
   renderPackages();
 
   if (packages.length === 0) {
-    showToast(`⚠ Opened ${rec.quotNo} — no package data found. This record was saved before the latest update. Please re-enter the packages and re-save.`, '');
+    showToast('⚠ ' + rec.quotNo + ' — no package data. Please re-enter and re-save.', '');
     switchTab('setup');
   } else {
-    const msg = missingItems > 0
-      ? `Opened ${rec.quotNo} — ${missingItems} item(s) not found in catalog (shown as placeholders)`
-      : `Opened: ${rec.quotNo} — ${restoredItems} item(s) restored across ${packages.length} package(s)`;
-    showToast(msg, missingItems > 0 ? '' : 'success');
+    const warn = missingItems > 0 ? ' (' + missingItems + ' item(s) not in catalog)' : '';
+    showToast('Opened: ' + rec.quotNo + ' — ' + restoredItems + ' item(s) restored' + warn,
+              missingItems > 0 ? '' : 'success');
     switchTab('packages');
   }
 }
+
 
 
 // ═══════════════════════════════════════════════════════
@@ -2290,7 +2379,7 @@ async
 // ── Google Sheets: ALL calls via JSONP GET ───────────────────────────────
 // Works from any origin (file://, localhost, any domain) — no CORS issues
 
-function sheetCall(url, action, payload) {
+function sheetCall(url, action, payload, extraParams) {
   return new Promise((resolve, reject) => {
     const cbName = '_gas_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     const timer  = setTimeout(() => { cleanup(); reject(new Error('Timeout after 15s')); }, 15000);
@@ -2305,12 +2394,13 @@ function sheetCall(url, action, payload) {
     }
 
     const params = new URLSearchParams({ action, callback: cbName });
-    if (payload) params.set('payload', encodeURIComponent(JSON.stringify(payload)));
+    if (payload)     params.set('payload', encodeURIComponent(JSON.stringify(payload)));
+    if (extraParams) Object.entries(extraParams).forEach(([k,v]) => params.set(k, encodeURIComponent(String(v))));
 
-    const script    = document.createElement('script');
-    script.id       = cbName;
-    script.src      = url + '?' + params.toString();
-    script.onerror  = () => { cleanup(); reject(new Error('Request failed — check URL')); };
+    const script   = document.createElement('script');
+    script.id      = cbName;
+    script.src     = url + '?' + params.toString();
+    script.onerror = () => { cleanup(); reject(new Error('Request failed — check URL')); };
     document.head.appendChild(script);
   });
 }
@@ -2473,9 +2563,9 @@ function copyGASCode() {
   let result     = {};
 
   try {
-    // ── READS ──────────────────────────────────────────
+
     if (action === 'ping') {
-      result = { ok: true, message: 'Connected to Google Sheets!' };
+      result = { ok: true, message: 'Connected!' };
 
     } else if (action === 'get_records') {
       const sh = ss.getSheetByName('QuotationRecords');
@@ -2483,12 +2573,28 @@ function copyGASCode() {
       else {
         const rows = sh.getDataRange().getValues().slice(1);
         result = { records: rows.map(r => ({
-          id:String(r[0]), quotNo:String(r[1]), date:String(r[2]),
-          client:String(r[3]), pkgCount:Number(r[4]), totalRevenue:Number(r[5]),
-          margin:String(r[6]), status:String(r[7]),
-          preparedBy:String(r[8]), savedAt:String(r[9]),
-          packagesJSON:String(r[10]||'')
+          id:          String(r[0]),
+          quotNo:      String(r[1]),
+          date:        String(r[2]),
+          client:      String(r[3]),
+          pkgCount:    Number(r[4]),
+          totalRevenue:Number(r[5]),
+          margin:      String(r[6]),
+          status:      String(r[7]),
+          preparedBy:  String(r[8]),
+          savedAt:     String(r[9])
         }))};
+      }
+
+    } else if (action === 'get_record_detail') {
+      // Returns full detail JSON for one record by id
+      const id = e.parameter.id || '';
+      const sh = ss.getSheetByName('RecordDetails');
+      if (!sh) { result = { detail: null }; }
+      else {
+        const rows = sh.getDataRange().getValues().slice(1);
+        const row  = rows.find(r => String(r[0]) === id);
+        result = { detail: row ? String(row[1]) : null };
       }
 
     } else if (action === 'get_catalog') {
@@ -2503,22 +2609,65 @@ function copyGASCode() {
         }))};
       }
 
-    // ── WRITES (via GET + payload param) ──────────────
     } else if (action === 'save_record') {
+      // Save summary row to QuotationRecords sheet
       const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
       let sh = ss.getSheetByName('QuotationRecords');
       if (!sh) {
         sh = ss.insertSheet('QuotationRecords');
-        sh.appendRow(['ID','QuotNo','Date','Client','Packages','TotalRevenue','Margin','Status','PreparedBy','SavedAt','PackagesJSON']);
+        sh.appendRow(['ID','QuotNo','Date','Client','Packages','TotalRevenue','Margin','Status','PreparedBy','SavedAt']);
         sh.setFrozenRows(1);
       }
       const rows = sh.getDataRange().getValues().slice(1);
       const idx  = rows.findIndex(r => String(r[0]) === String(d.id));
       const row  = [d.id, d.quotNo, d.date, d.client, d.pkgCount,
-                    d.totalRevenue, d.margin, d.status||'Draft', d.preparedBy||'',
-                    new Date().toISOString(), d.packagesJSON||''];
-      if (idx >= 0) { sh.getRange(idx+2, 1, 1, row.length).setValues([row]); }
+                    d.totalRevenue, d.margin, d.status||'Draft',
+                    d.preparedBy||'', new Date().toISOString()];
+      if (idx >= 0) { sh.getRange(idx+2,1,1,row.length).setValues([row]); }
       else          { sh.appendRow(row); }
+      result = { ok: true };
+
+    } else if (action === 'save_record_detail') {
+      // Save full detail JSON to RecordDetails sheet (separate from summary)
+      // The detail JSON is chunked to stay within URL limits
+      const id    = e.parameter.id || '';
+      const chunk = e.parameter.chunk || '';
+      const idx_c = Number(e.parameter.idx || 0);
+      const total = Number(e.parameter.total || 1);
+
+      let sh = ss.getSheetByName('RecordDetails');
+      if (!sh) {
+        sh = ss.insertSheet('RecordDetails');
+        sh.appendRow(['ID','DetailJSON','UpdatedAt']);
+        sh.setFrozenRows(1);
+      }
+
+      // Use PropertiesService to accumulate chunks
+      const props = PropertiesService.getScriptProperties();
+      const key   = 'chunk_' + id;
+
+      if (total === 1) {
+        // Single chunk — write directly
+        const rows = sh.getDataRange().getValues().slice(1);
+        const ri   = rows.findIndex(r => String(r[0]) === id);
+        if (ri >= 0) { sh.getRange(ri+2,2).setValue(chunk); sh.getRange(ri+2,3).setValue(new Date().toISOString()); }
+        else         { sh.appendRow([id, chunk, new Date().toISOString()]); }
+        props.deleteProperty(key);
+      } else {
+        // Multi-chunk — accumulate in PropertiesService then flush on last chunk
+        const existing = props.getProperty(key) || '';
+        const updated  = existing + chunk;
+        if (idx_c < total - 1) {
+          props.setProperty(key, updated);
+        } else {
+          // Last chunk — write full assembled JSON
+          const rows = sh.getDataRange().getValues().slice(1);
+          const ri   = rows.findIndex(r => String(r[0]) === id);
+          if (ri >= 0) { sh.getRange(ri+2,2).setValue(updated); sh.getRange(ri+2,3).setValue(new Date().toISOString()); }
+          else         { sh.appendRow([id, updated, new Date().toISOString()]); }
+          props.deleteProperty(key);
+        }
+      }
       result = { ok: true };
 
     } else if (action === 'save_catalog_item') {
@@ -2539,11 +2688,8 @@ function copyGASCode() {
       const sh = ss.getSheetByName('QuotationRecords');
       if (sh) {
         const rows = sh.getDataRange().getValues();
-        for (let i = 1; i < rows.length; i++) {
-          if (String(rows[i][0]) === String(d.id)) {
-            sh.getRange(i+1, 8).setValue(d.status);
-            break;
-          }
+        for (let i=1; i<rows.length; i++) {
+          if (String(rows[i][0]) === String(d.id)) { sh.getRange(i+1,8).setValue(d.status); break; }
         }
       }
       result = { ok: true };
@@ -2553,11 +2699,16 @@ function copyGASCode() {
       const sh = ss.getSheetByName('QuotationRecords');
       if (sh) {
         const rows = sh.getDataRange().getValues();
-        for (let i = rows.length - 1; i >= 1; i--) {
-          if (String(rows[i][0]) === String(d.id)) {
-            sh.deleteRow(i + 1);
-            break;
-          }
+        for (let i=rows.length-1; i>=1; i--) {
+          if (String(rows[i][0]) === String(d.id)) { sh.deleteRow(i+1); break; }
+        }
+      }
+      // Also delete from RecordDetails
+      const sd = ss.getSheetByName('RecordDetails');
+      if (sd) {
+        const drows = sd.getDataRange().getValues();
+        for (let i=drows.length-1; i>=1; i--) {
+          if (String(drows[i][0]) === String(d.id)) { sd.deleteRow(i+1); break; }
         }
       }
       result = { ok: true };
@@ -2565,6 +2716,7 @@ function copyGASCode() {
     } else {
       result = { ok: false, error: 'Unknown action: ' + action };
     }
+
   } catch(err) {
     result = { ok: false, error: err.toString() };
   }
@@ -2574,8 +2726,7 @@ function copyGASCode() {
     return ContentService.createTextOutput(callback + '(' + json + ')')
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
-  return ContentService.createTextOutput(json)
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }`;
   navigator.clipboard.writeText(code)
     .then(() => showToast('Apps Script code copied! Paste into Apps Script editor.', 'success'))
