@@ -1924,13 +1924,36 @@ async function fetchRecordsFromSheets() {
   try {
     const res = await sheetCall(url, 'get_records');
     if (res.records) {
-      // Parse packagesJSON back into packagesSnapshot for each record
+      // Parse packagesJSON — supports both old format (array) and new format (object with all fields)
       records = res.records.map(r => {
         let packagesSnapshot = [];
+        let extra = {};
         if (r.packagesJSON) {
-          try { packagesSnapshot = JSON.parse(r.packagesJSON); } catch(e) { packagesSnapshot = []; }
+          try {
+            const parsed = JSON.parse(r.packagesJSON);
+            if (Array.isArray(parsed)) {
+              // OLD FORMAT: bare array of packages
+              packagesSnapshot = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+              // NEW FORMAT: object with packages + all client fields
+              packagesSnapshot = parsed.packages || [];
+              extra = {
+                contact:    parsed.contact    || '',
+                email:      parsed.email      || '',
+                phone:      parsed.phone      || '',
+                addr:       parsed.addr       || '',
+                taxId:      parsed.taxId      || '',
+                branch:     parsed.branch     || '',
+                validUntil: parsed.validUntil || '',
+                prepEmail:  parsed.prepEmail  || '',
+                prepPhone:  parsed.prepPhone  || '',
+                quotNotes:  parsed.quotNotes  || '',
+                quotTC:     parsed.quotTC     || ''
+              };
+            }
+          } catch(e) { packagesSnapshot = []; }
         }
-        return { ...r, packagesSnapshot };
+        return { ...r, packagesSnapshot, ...extra };
       });
       updateRecordsBadge();
       renderRecordsTable();
@@ -2029,6 +2052,21 @@ async function saveRecord() {
   updateSyncStatus('syncing');
 
   try {
+    // Encode ALL restoreable fields into one JSON blob stored in PackagesJSON column
+    const fullRecordData = JSON.stringify({
+      packages:   rec.packagesSnapshot,
+      contact:    rec.contact    || '',
+      email:      rec.email      || '',
+      phone:      rec.phone      || '',
+      addr:       rec.addr       || '',
+      taxId:      rec.taxId      || '',
+      branch:     rec.branch     || '',
+      validUntil: rec.validUntil || '',
+      prepEmail:  rec.prepEmail  || '',
+      prepPhone:  rec.prepPhone  || '',
+      quotNotes:  v('quotNotes') || '',
+      quotTC:     v('quotTC')    || ''
+    });
     await sheetCall(url, 'save_record', {
       id:           rec.id,
       quotNo:       rec.quotNo,
@@ -2039,7 +2077,7 @@ async function saveRecord() {
       margin:       (margin*100).toFixed(1)+'%',
       status:       rec.status,
       preparedBy:   rec.preparedBy,
-      packagesJSON: JSON.stringify(rec.packagesSnapshot)
+      packagesJSON: fullRecordData
     });
     updateSyncStatus('connected');
     showToast('✓ Saved to Google Sheets — ' + quotNo, 'success');
@@ -2144,6 +2182,8 @@ function restoreRecord(id) {
   setV('quotValid',     rec.validUntil || '');
   setV('prepEmail',     rec.prepEmail  || '');
   setV('prepPhone',     rec.prepPhone  || '');
+  setV('quotNotes',     rec.quotNotes  || '');
+  setV('quotTC',        rec.quotTC     || '');
 
   // Restore packages from snapshot
   packages = []; pkgCounter = 0;
@@ -2195,12 +2235,17 @@ function restoreRecord(id) {
 
   rebuildSharedLumpMap();
   renderPackages();
-  switchTab('packages'); // go straight to packages tab so team can see the restored items
 
-  const msg = missingItems > 0
-    ? `Opened ${rec.quotNo} — ${missingItems} item(s) not found in catalog (shown as placeholders)`
-    : `Opened: ${rec.quotNo} — ${restoredItems} item(s) restored`;
-  showToast(msg, missingItems > 0 ? '' : 'success');
+  if (packages.length === 0) {
+    showToast(`⚠ Opened ${rec.quotNo} — no package data found. This record was saved before the latest update. Please re-enter the packages and re-save.`, '');
+    switchTab('setup');
+  } else {
+    const msg = missingItems > 0
+      ? `Opened ${rec.quotNo} — ${missingItems} item(s) not found in catalog (shown as placeholders)`
+      : `Opened: ${rec.quotNo} — ${restoredItems} item(s) restored across ${packages.length} package(s)`;
+    showToast(msg, missingItems > 0 ? '' : 'success');
+    switchTab('packages');
+  }
 }
 
 
