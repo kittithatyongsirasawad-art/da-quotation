@@ -793,10 +793,11 @@
               <label>Google Apps Script Web App URL
                 <span id="url-source-badge" style="margin-left:8px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--teal-light);color:var(--teal-dark);"></span>
               </label>
-              <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/…/exec" onchange="saveSettings()" onblur="saveSettings()">
+              <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/…/exec" onchange="saveSettings();checkUrlFormat()" onblur="saveSettings();checkUrlFormat()">
               <span style="font-size:11px;color:var(--ink-light);margin-top:4px;display:block;">
                 💡 To update for all team members: edit <code style="background:var(--surface);padding:1px 5px;border-radius:3px;">DEFAULT_GAS_URL</code> at the top of this HTML file and re-upload.
               </span>
+              <div id="url-validation-msg" style="display:none;margin-top:6px;font-size:12px;padding:6px 10px;border-radius:6px;"></div>
             </div>
           </div>
           <div class="conn-status-row">
@@ -850,7 +851,7 @@
 // Paste your deployed Web App URL here once — everyone who opens
 // this file will be connected automatically, no setup needed.
 // ═══════════════════════════════════════════════
-const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyTb94EGSIE6bvztzPZNZ4EcOhBrBofAFhxLQTKURs7p4hkp0j-HknXt32_V6ibap77MA/exec';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyUosA9q6nBywSIl4lYtCKjx7dLPasnXR9iYiWOi0w48n96VpPXYzefiCv7yS3fNbyGbQ/exec';
 
 // ═══════════════════════════════════════════════
 // LUMP SUM PAIRS
@@ -2146,9 +2147,10 @@ function updateSyncStatus(state) {
 
 
 async function saveRecord() {
-  const url = getGasUrl();
-  if (!url || url === 'YOUR_APPS_SCRIPT_URL_HERE') {
-    showToast('⚠ Go to ⚙ Settings and connect Google Sheets first', 'error');
+  const url     = getGasUrl();
+  const urlErr  = validateGasUrl(url);
+  if (urlErr) {
+    showToast('⚠ ' + urlErr, 'error');
     switchTab('settings');
     return;
   }
@@ -2376,9 +2378,16 @@ async function restoreRecord(id) {
 // GOOGLE SHEETS / SETTINGS
 // ═══════════════════════════════════════════════════════
 function getGasUrl() {
-  // Use saved URL if team member entered their own, otherwise use the built-in default
   const saved = (localStorage.getItem('da_gas_url') || '').trim();
-  return saved || (typeof DEFAULT_GAS_URL !== 'undefined' ? DEFAULT_GAS_URL.trim() : '');
+  const url   = saved || (typeof DEFAULT_GAS_URL !== 'undefined' ? DEFAULT_GAS_URL.trim() : '');
+  return url;
+}
+
+function validateGasUrl(url) {
+  if (!url || url === 'YOUR_APPS_SCRIPT_URL_HERE') return 'No URL configured — go to ⚙ Settings';
+  if (!url.startsWith('https://script.google.com/macros/s/')) return 'URL must start with https://script.google.com/macros/s/';
+  if (!url.endsWith('/exec')) return 'URL must end with /exec';
+  return null; // valid
 }
 
 function saveSettings() {
@@ -2433,8 +2442,19 @@ function sheetCall(url, action, payload, extraParams) {
 
     const script   = document.createElement('script');
     script.id      = cbName;
-    script.src     = url + '?' + params.toString();
-    script.onerror = () => { cleanup(); reject(new Error('Request failed — check URL')); };
+    const fullUrl  = url + '?' + params.toString();
+    script.src     = fullUrl;
+    script.onerror = () => {
+      cleanup();
+      // Diagnose common causes
+      if (!url.includes('script.google.com/macros/s/')) {
+        reject(new Error('URL format wrong — must be a Google Apps Script /exec URL'));
+      } else if (!url.endsWith('/exec')) {
+        reject(new Error('URL must end with /exec'));
+      } else {
+        reject(new Error('Request failed — Apps Script rejected the request. Most likely: deployment not set to "Anyone" access, or you need a New Deployment after code changes.'));
+      }
+    };
     document.head.appendChild(script);
   });
 }
