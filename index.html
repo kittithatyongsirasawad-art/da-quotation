@@ -2077,6 +2077,47 @@ function updateRecordsBadge() {
   const el = document.getElementById('rec-count-badge');
   if (el) el.textContent = records.length;
 }
+function renderRecordsTable() {
+  const tbody = document.getElementById('recordsTableBody');
+  if (!tbody) return;
+  if (!records.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--ink-light);">No records yet. Fill in client details, build packages, then click 💾 Save Current.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = records.map(r => {
+    const m  = typeof r.margin === 'number' ? r.margin : (parseFloat(r.margin) / 100) || 0;
+    const mc = m >= 0.12 ? 'ok' : m >= 0.07 ? 'warn' : 'bad';
+    const marginDisplay = typeof r.margin === 'string' ? r.margin : (m * 100).toFixed(1) + '%';
+    return `<tr>
+      <td style="font-weight:700;color:var(--teal);">${r.quotNo || '—'}</td>
+      <td>${r.date || '—'}</td>
+      <td>
+        <div style="font-weight:600;">${r.client || '—'}</div>
+        ${r.contact ? `<div style="font-size:11px;color:var(--ink-light);">${r.contact}</div>` : ''}
+      </td>
+      <td style="text-align:center;">${r.pkgCount || 0}</td>
+      <td style="font-weight:700;">฿${fmtN(r.totalRevenue || 0)}</td>
+      <td><span class="mbadge m-${mc}" style="font-size:11px;">${marginDisplay}</span></td>
+      <td>
+        <select style="font-size:11.5px;padding:2px 6px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;"
+          onchange="updateRecordStatus('${r.id}', this.value)">
+          <option ${r.status === 'Draft'    ? 'selected' : ''}>Draft</option>
+          <option ${r.status === 'Sent'     ? 'selected' : ''}>Sent</option>
+          <option ${r.status === 'Accepted' ? 'selected' : ''}>Accepted</option>
+          <option ${r.status === 'Rejected' ? 'selected' : ''}>Rejected</option>
+        </select>
+      </td>
+      <td>
+        <div class="rec-actions">
+          <button class="btn btn-sm btn-outline" onclick="restoreRecord('${r.id}')" title="Open in builder">↩ Open</button>
+          <button class="btn btn-sm btn-danger"  onclick="deleteRecord('${r.id}')"  title="Delete">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+
 function updateSyncStatus(state) {
   const dot   = document.getElementById('syncDot');
   const lbl   = document.getElementById('syncLabel');
