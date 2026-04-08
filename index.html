@@ -659,59 +659,34 @@
 
     // ── SAVE RECORD DETAIL (full JSON) ────────────────────────────
     } else if (action === 'save_record_detail') {
-      // Receives parts: { id, part: 'client'|'pkg', pkgIndex, data }
-      // Assembles them using PropertiesService, writes to RecordDetails on 'done'
-      var d        = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
-      var id       = String(d.id   || '');
-      var part     = String(d.part || '');
-      var isDone   = d.done === true;
-      var props    = PropertiesService.getScriptProperties();
-      var stateKey = 'rdbuild_' + id;
-
-      if (!id) { result = { ok: false, error: 'Missing id' }; }
-      else if (isDone) {
-        // Final call — assemble and write to RecordDetails sheet
-        var stateStr = props.getProperty(stateKey) || '{}';
-        var state    = JSON.parse(stateStr);
-        var finalObj = { packages: [] };
-        // Merge client info
-        if (state.client) {
-          var ci = JSON.parse(state.client);
-          Object.keys(ci).forEach(function(k){ finalObj[k] = ci[k]; });
-        }
-        // Merge packages in order
-        var i = 0;
-        while (state['pkg_' + i] !== undefined) {
-          finalObj.packages.push(JSON.parse(state['pkg_' + i]));
-          i++;
-        }
-        var finalJSON = JSON.stringify(finalObj);
+      // Receives compact detail JSON in one call via payload
+      var d      = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      var id     = String(d.id     || '');
+      var detail = String(d.detail || '');
+      if (!id || !detail) {
+        result = { ok: false, error: 'Missing id or detail' };
+      } else {
         var sh = ss.getSheetByName('RecordDetails');
         if (!sh) {
           sh = ss.insertSheet('RecordDetails');
           sh.appendRow(['ID','FullJSON','UpdatedAt']);
           sh.setFrozenRows(1);
           sh.getRange('A1:C1').setFontWeight('bold');
-          sh.setColumnWidth(1, 150); sh.setColumnWidth(2, 500);
+          sh.setColumnWidth(1, 150);
+          sh.setColumnWidth(2, 500);
         }
         var now  = new Date().toISOString();
         var rows = sh.getLastRow() > 1 ? sh.getDataRange().getValues().slice(1) : [];
         var ri   = -1;
-        for (var i=0; i<rows.length; i++) { if (String(rows[i][0])===id) { ri=i; break; } }
-        if (ri >= 0) { sh.getRange(ri+2,2).setValue(finalJSON); sh.getRange(ri+2,3).setValue(now); }
-        else         { sh.appendRow([id, finalJSON, now]); }
-        props.deleteProperty(stateKey);
-        result = { ok: true };
-      } else {
-        // Accumulate part into PropertiesService
-        var stateStr = props.getProperty(stateKey) || '{}';
-        var state    = JSON.parse(stateStr);
-        if (part === 'client') {
-          state.client = JSON.stringify(d.data);
-        } else if (part === 'pkg') {
-          state['pkg_' + d.pkgIndex] = JSON.stringify(d.data);
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === id) { ri = i; break; }
         }
-        props.setProperty(stateKey, JSON.stringify(state));
+        if (ri >= 0) {
+          sh.getRange(ri + 2, 2).setValue(detail);
+          sh.getRange(ri + 2, 3).setValue(now);
+        } else {
+          sh.appendRow([id, detail, now]);
+        }
         result = { ok: true };
       }
     } else if (action === 'save_catalog_item') {
@@ -873,7 +848,7 @@
 // Paste your deployed Web App URL here once — everyone who opens
 // this file will be connected automatically, no setup needed.
 // ═══════════════════════════════════════════════
-const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbxJSWc8bNBmA3x1aUN6v1AgeulNaNAEGfFlkI5cszBJsTl5oon4SuPCaRuUq7emk82_lA/exec';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzRwjknjdE9YvqP533gLpxScj87EfOXgJJEO93z7zkZkxpyQFNWnTHyTpsO6-bQDoW8AQ/exec';
 
 // ═══════════════════════════════════════════════
 // LUMP SUM PAIRS
@@ -2271,29 +2246,38 @@ async function saveRecord() {
 
 
 async function saveRecordDetail(url, id, detailJSON) {
-  // Split into small parts: client info + one call per package
-  // Each call stays well under GAS URL limit (~8KB)
+  // Store compact format: item codes only (not full objects)
+  // Built-in catalog items restored by code lookup; custom items stored in full
   let parsed;
   try { parsed = JSON.parse(detailJSON); } catch(e) { return; }
 
-  const { packages = [], ...clientInfo } = parsed;
+  const compact = {
+    packages: (parsed.packages || []).map(p => ({
+      name: p.name,
+      pax:  p.pax,
+      sp:   p.sp,
+      items: (p.items || []).map(item => {
+        // If item exists in built-in catalog, store code only
+        const inCatalog = CATALOG.find(c => c.code === item.code);
+        return inCatalog ? item.code : item; // code string OR full object for custom
+      })
+    })),
+    contact:    parsed.contact    || '',
+    email:      parsed.email      || '',
+    phone:      parsed.phone      || '',
+    addr:       parsed.addr       || '',
+    taxId:      parsed.taxId      || '',
+    branch:     parsed.branch     || '',
+    validUntil: parsed.validUntil || '',
+    prepEmail:  parsed.prepEmail  || '',
+    prepPhone:  parsed.prepPhone  || '',
+    quotNotes:  parsed.quotNotes  || '',
+    quotTC:     parsed.quotTC     || ''
+  };
 
-  // Step A: Send client info
-  await sheetCall(url, 'save_record_detail', {
-    id, part: 'client', data: clientInfo
-  });
-
-  // Step B: Send each package individually
-  for (let i = 0; i < packages.length; i++) {
-    await sheetCall(url, 'save_record_detail', {
-      id, part: 'pkg', pkgIndex: i, data: packages[i]
-    });
-  }
-
-  // Step C: Signal GAS to assemble and write to RecordDetails sheet
-  await sheetCall(url, 'save_record_detail', {
-    id, done: true
-  });
+  // Single call — compact JSON is well under URL limit
+  const r = await sheetCall(url, 'save_record_detail', { id, detail: JSON.stringify(compact) });
+  if (!r || !r.ok) throw new Error('Detail save failed: ' + (r && r.error ? r.error : 'no response'));
 }
 
 
@@ -2809,59 +2793,34 @@ function copyGASCode() {
 
     // ── SAVE RECORD DETAIL (full JSON) ────────────────────────────
     } else if (action === 'save_record_detail') {
-      // Receives parts: { id, part: 'client'|'pkg', pkgIndex, data }
-      // Assembles them using PropertiesService, writes to RecordDetails on 'done'
-      var d        = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
-      var id       = String(d.id   || '');
-      var part     = String(d.part || '');
-      var isDone   = d.done === true;
-      var props    = PropertiesService.getScriptProperties();
-      var stateKey = 'rdbuild_' + id;
-
-      if (!id) { result = { ok: false, error: 'Missing id' }; }
-      else if (isDone) {
-        // Final call — assemble and write to RecordDetails sheet
-        var stateStr = props.getProperty(stateKey) || '{}';
-        var state    = JSON.parse(stateStr);
-        var finalObj = { packages: [] };
-        // Merge client info
-        if (state.client) {
-          var ci = JSON.parse(state.client);
-          Object.keys(ci).forEach(function(k){ finalObj[k] = ci[k]; });
-        }
-        // Merge packages in order
-        var i = 0;
-        while (state['pkg_' + i] !== undefined) {
-          finalObj.packages.push(JSON.parse(state['pkg_' + i]));
-          i++;
-        }
-        var finalJSON = JSON.stringify(finalObj);
+      // Receives compact detail JSON in one call via payload
+      var d      = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      var id     = String(d.id     || '');
+      var detail = String(d.detail || '');
+      if (!id || !detail) {
+        result = { ok: false, error: 'Missing id or detail' };
+      } else {
         var sh = ss.getSheetByName('RecordDetails');
         if (!sh) {
           sh = ss.insertSheet('RecordDetails');
           sh.appendRow(['ID','FullJSON','UpdatedAt']);
           sh.setFrozenRows(1);
           sh.getRange('A1:C1').setFontWeight('bold');
-          sh.setColumnWidth(1, 150); sh.setColumnWidth(2, 500);
+          sh.setColumnWidth(1, 150);
+          sh.setColumnWidth(2, 500);
         }
         var now  = new Date().toISOString();
         var rows = sh.getLastRow() > 1 ? sh.getDataRange().getValues().slice(1) : [];
         var ri   = -1;
-        for (var i=0; i<rows.length; i++) { if (String(rows[i][0])===id) { ri=i; break; } }
-        if (ri >= 0) { sh.getRange(ri+2,2).setValue(finalJSON); sh.getRange(ri+2,3).setValue(now); }
-        else         { sh.appendRow([id, finalJSON, now]); }
-        props.deleteProperty(stateKey);
-        result = { ok: true };
-      } else {
-        // Accumulate part into PropertiesService
-        var stateStr = props.getProperty(stateKey) || '{}';
-        var state    = JSON.parse(stateStr);
-        if (part === 'client') {
-          state.client = JSON.stringify(d.data);
-        } else if (part === 'pkg') {
-          state['pkg_' + d.pkgIndex] = JSON.stringify(d.data);
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === id) { ri = i; break; }
         }
-        props.setProperty(stateKey, JSON.stringify(state));
+        if (ri >= 0) {
+          sh.getRange(ri + 2, 2).setValue(detail);
+          sh.getRange(ri + 2, 3).setValue(now);
+        } else {
+          sh.appendRow([id, detail, now]);
+        }
         result = { ok: true };
       }
     } else if (action === 'save_catalog_item') {
