@@ -1,0 +1,2173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DA Health Screening — Quotation Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --teal:#1D9E75; --teal-dark:#157a5a; --teal-light:#e6f7f2;
+    --amber:#EF9F27; --amber-light:#fef6e7;
+    --coral:#D85A30; --coral-light:#fceee9;
+    --ink:#1a1f2e; --ink-mid:#3d4459; --ink-light:#6b7280;
+    --border:#e5e7eb; --surface:#f8fafb; --white:#ffffff;
+    --red:#e03e3e; --green:#10b981; --blue:#3b82f6; --blue-light:#eff6ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--ink);min-height:100vh;}
+  .app-header{background:var(--ink);padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:58px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+  .logo{font-family:'DM Serif Display',serif;font-size:19px;color:#fff;display:flex;align-items:center;gap:10px;}
+  .logo .chip{background:var(--teal);color:#fff;font-family:'DM Sans',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:1.5px;padding:3px 8px;border-radius:4px;text-transform:uppercase;}
+  .logo .sub{color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:400;}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;}
+  .btn-primary{background:var(--teal);color:#fff;} .btn-primary:hover{background:var(--teal-dark);}
+  .btn-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);} .btn-ghost:hover{background:rgba(255,255,255,.18);}
+  .btn-outline{background:#fff;color:var(--teal);border:1.5px solid var(--teal);} .btn-outline:hover{background:var(--teal-light);}
+  .btn-danger{background:var(--coral);color:#fff;} .btn-danger:hover{background:#c0451f;}
+  .btn-sm{padding:4px 11px;font-size:12px;border-radius:6px;}
+  .hdr-actions{display:flex;gap:8px;}
+  .app-body{display:flex;height:calc(100vh - 58px);}
+  .left-panel{width:400px;min-width:320px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+  .panel-hdr{padding:16px 18px 12px;border-bottom:1px solid var(--border);}
+  .panel-hdr h3{font-family:'DM Serif Display',serif;font-size:16px;margin-bottom:10px;}
+  .search-wrap{display:flex;gap:7px;margin-bottom:8px;}
+  .search-wrap input{flex:1;padding:7px 11px;border:1.5px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border .15s;}
+  .search-wrap input:focus{border-color:var(--teal);}
+  .filter-row{display:flex;gap:5px;flex-wrap:wrap;}
+  .fbtn{padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--ink-light);transition:all .15s;font-family:'DM Sans',sans-serif;}
+  .fbtn.active{border-color:var(--teal);background:var(--teal-light);color:var(--teal-dark);}
+  .catalog-list{flex:1;overflow-y:auto;padding:10px 14px;}
+  .catalog-list::-webkit-scrollbar{width:4px;} .catalog-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+  .item-card{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border-radius:7px;margin-bottom:3px;cursor:pointer;border:1.5px solid transparent;transition:all .15s;}
+  .item-card:hover{background:var(--teal-light);border-color:var(--teal);}
+  .icode{font-size:10px;font-weight:700;color:var(--teal);background:var(--teal-light);padding:2px 6px;border-radius:4px;white-space:nowrap;margin-top:1px;min-width:58px;text-align:center;}
+  .iinfo{flex:1;min-width:0;}
+  .iname{font-size:12.5px;font-weight:500;color:var(--ink);line-height:1.35;}
+  .idesc{font-size:11px;color:var(--ink-light);margin-top:2px;line-height:1.3;}
+  .imeta{display:flex;gap:6px;margin-top:4px;align-items:center;flex-wrap:wrap;}
+  .icost{font-size:11.5px;font-weight:600;color:var(--ink-mid);}
+  .tag{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;letter-spacing:.4px;}
+  .tag-mll{background:#e0f2fe;color:#0369a1;}
+  .tag-lump{background:var(--amber-light);color:#92400e;}
+  .tag-unit{background:#f0fdf4;color:#166534;}
+  .add-btn{background:var(--teal);color:#fff;border:none;border-radius:6px;width:26px;height:26px;font-size:17px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s;margin-top:2px;}
+  .add-btn:hover{background:var(--teal-dark);}
+  .right-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .tabs{display:flex;border-bottom:2px solid var(--border);background:#fff;padding:0 22px;overflow-x:auto;flex-shrink:0;}
+  .tabs::-webkit-scrollbar{height:0;}
+  .tabs-secondary{display:flex;background:var(--surface);border-bottom:1px solid var(--border);padding:0 22px;gap:0;flex-shrink:0;}
+  .tab2{padding:7px 16px 6px;font-size:12px;font-weight:500;cursor:pointer;color:var(--ink-light);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap;}
+  .tab2:hover{color:var(--ink-mid);}
+  .tab2.active{color:var(--teal);border-bottom-color:var(--teal);}
+  .tab{padding:13px 18px 11px;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;color:var(--ink-light);transition:all .15s;white-space:nowrap;}
+  .tab.active{color:var(--teal);border-bottom-color:var(--teal);}
+  .tab:hover:not(.active){color:var(--ink-mid);}
+  .tab-content{flex:1;overflow-y:auto;display:none;}
+  .tab-content.active{display:block;}
+  .tab-content::-webkit-scrollbar{width:5px;} .tab-content::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+  .form-area{padding:22px 26px;}
+  .sec-label{font-size:10.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink-light);margin-bottom:11px;margin-top:22px;}
+  .sec-label:first-child{margin-top:0;}
+  .form-row{display:flex;gap:14px;margin-bottom:13px;}
+  .form-group{flex:1;display:flex;flex-direction:column;gap:4px;}
+  .form-group label{font-size:12px;font-weight:500;color:var(--ink-mid);}
+  .form-group input,.form-group select,.form-group textarea{padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border .15s;background:#fff;}
+  .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--teal);}
+  .form-group textarea{resize:vertical;min-height:66px;}
+  .divider{height:1px;background:var(--border);margin:18px 0;}
+  .pkg-area{padding:20px 22px;}
+  .pkg-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .pkg-top h3{font-family:'DM Serif Display',serif;font-size:17px;}
+  .pkg-card{background:#fff;border:1.5px solid var(--border);border-radius:11px;margin-bottom:14px;overflow:hidden;transition:box-shadow .2s;}
+  .pkg-card:hover{box-shadow:0 3px 14px rgba(0,0,0,.07);}
+  .pkg-card-hdr{display:flex;align-items:center;padding:12px 16px;background:var(--teal-light);border-bottom:1.5px solid var(--border);gap:10px;}
+  .pkg-badge{background:var(--teal);color:#fff;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+  .pkg-name-inp{flex:1;border:none!important;background:transparent!important;font-weight:600;font-size:13.5px;padding:3px 7px!important;border-radius:5px!important;outline:none;}
+  .pkg-name-inp:focus{background:#fff!important;border:1.5px solid var(--teal)!important;}
+  .pkg-actions{display:flex;gap:6px;margin-left:auto;}
+  .pkg-body{padding:14px 16px;}
+  .pax-row{display:flex;gap:14px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap;}
+  .pax-row .form-group{max-width:190px;}
+  .pax-info{font-size:12px;color:var(--ink-mid);padding:6px 10px;background:var(--surface);border-radius:6px;align-self:flex-end;border:1px solid var(--border);}
+  .sel-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:2px;}
+  .sel-table th{text-align:left;padding:6px 9px;background:var(--surface);border-bottom:1.5px solid var(--border);font-weight:600;color:var(--ink-light);font-size:11px;text-transform:uppercase;letter-spacing:.5px;}
+  .sel-table td{padding:7px 9px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .sel-table tr:last-child td{border-bottom:none;}
+  .lump-floor-row{background:#fffbeb!important;}
+  .lump-floor-badge{font-size:10.5px;color:#92400e;background:var(--amber-light);padding:2px 7px;border-radius:4px;font-weight:600;display:inline-flex;align-items:center;gap:3px;margin-top:3px;}
+  .above-thresh{font-size:10.5px;color:#065f46;background:#d1fae5;padding:2px 7px;border-radius:4px;font-weight:600;margin-top:3px;display:inline-flex;align-items:center;}
+  .rem-note{font-size:11px;color:#92400e;margin-top:2px;}
+  .rmv-btn{background:none;border:none;cursor:pointer;color:var(--ink-light);font-size:15px;padding:1px;border-radius:4px;line-height:1;}
+  .rmv-btn:hover{color:var(--coral);background:var(--coral-light);}
+  .pkg-totals{margin-top:12px;padding:13px 14px;background:var(--surface);border-radius:8px;border:1px solid var(--border);}
+  .totals-grid{display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
+  .tot-item{display:flex;flex-direction:column;gap:2px;}
+  .tot-item .tl{font-size:10.5px;color:var(--ink-light);font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+  .tot-item .tv{font-size:14.5px;font-weight:700;color:var(--ink);}
+  .mbadge{padding:3px 9px;border-radius:5px;font-size:12.5px;font-weight:700;}
+  .m-ok{background:#d1fae5;color:#065f46;} .m-warn{background:var(--amber-light);color:#92400e;} .m-bad{background:var(--coral-light);color:#9b1c1c;}
+  .malert{padding:6px 11px;border-radius:6px;font-size:12px;font-weight:500;display:flex;align-items:center;gap:6px;margin-top:6px;}
+  .malert.warn{background:var(--amber-light);color:#92400e;border:1px solid #fcd34d;}
+  .malert.bad{background:var(--coral-light);color:#9b1c1c;border:1px solid #fca5a5;}
+  /* SUGGEST BOX */
+  .suggest-box{margin-top:10px;background:#fff;border:1.5px solid var(--blue);border-radius:9px;overflow:hidden;}
+  .suggest-hdr{background:var(--blue-light);padding:8px 14px;font-size:11.5px;font-weight:700;color:#1d4ed8;display:flex;align-items:center;gap:6px;}
+  .suggest-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .suggest-table th{padding:6px 12px;background:#f8faff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#4b5563;border-bottom:1px solid #dbeafe;text-align:left;}
+  .suggest-table td{padding:8px 12px;border-bottom:1px solid #eff6ff;vertical-align:middle;}
+  .suggest-table tr:last-child td{border-bottom:none;}
+  .suggest-table tr.cur-tier{background:#eff6ff;}
+  .s-price{font-weight:700;font-size:13.5px;color:var(--teal-dark);}
+  .s-badge{padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;}
+  .s-cur{background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;}
+  /* PREVIEW */
+  .preview-area{padding:22px 26px;max-width:920px;}
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+  .stat-card{background:#fff;border:1.5px solid var(--border);border-radius:9px;padding:14px 16px;}
+  .stat-card .sl{font-size:10.5px;font-weight:700;color:var(--ink-light);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;}
+  .stat-card .sv{font-size:21px;font-weight:700;color:var(--ink);font-family:'DM Serif Display',serif;}
+  .stat-card .ss{font-size:11px;color:var(--ink-light);margin-top:3px;}
+  .stat-card.hi{border-color:var(--teal);background:var(--teal-light);}
+  .stat-card.hi .sv{color:var(--teal-dark);}
+  .overall-status{padding:12px 16px;border-radius:9px;margin-bottom:20px;display:flex;align-items:center;gap:10px;font-weight:600;font-size:13.5px;}
+  .os-ok{background:#d1fae5;color:#065f46;border:1.5px solid #6ee7b7;}
+  .os-warn{background:var(--amber-light);color:#92400e;border:1.5px solid #fcd34d;}
+  .os-bad{background:var(--coral-light);color:#9b1c1c;border:1.5px solid #fca5a5;}
+  .policy-box{background:#fff;border:1.5px solid var(--border);border-radius:9px;padding:14px 18px;margin-bottom:20px;}
+  .policy-box h4{font-size:12px;font-weight:700;color:var(--ink-mid);margin-bottom:9px;}
+  .policy-rules{display:flex;gap:14px;flex-wrap:wrap;}
+  .policy-rule{display:flex;align-items:center;gap:7px;font-size:12.5px;}
+  .dot{width:9px;height:9px;border-radius:50%;}
+  .dot-g{background:var(--green);} .dot-a{background:var(--amber);} .dot-r{background:var(--red);}
+  .prev-pkg{background:#fff;border:1.5px solid var(--border);border-radius:9px;margin-bottom:14px;overflow:hidden;}
+  .prev-pkg-hdr{padding:11px 16px;background:var(--ink);color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+  .prev-pkg-hdr h4{font-family:'DM Serif Display',serif;font-size:15px;}
+  .ppstats{display:flex;gap:18px;flex-wrap:wrap;}
+  .pps .pl{font-size:11px;color:rgba(255,255,255,.55);} .pps .pv{font-size:13px;font-weight:700;}
+  .prev-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .prev-table th{padding:7px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--ink-light);text-transform:uppercase;letter-spacing:.5px;text-align:left;border-bottom:1.5px solid var(--border);}
+  .prev-table td{padding:8px 12px;border-bottom:1px solid var(--border);}
+  .prev-table tr:last-child td{border-bottom:none;}
+  .lump-adj td{background:#fffbeb;}
+  /* QUOTATION */
+  .quot-wrap{padding:22px 26px;}
+  .quot-doc{background:#fff;border:1px solid var(--border);border-radius:0;overflow:visible;max-width:820px;box-shadow:0 4px 20px rgba(0,0,0,.06);font-size:12px;}
+  /* Header band */
+  .quot-hdr{background:var(--ink);color:#fff;padding:20px 32px;display:flex;justify-content:space-between;align-items:flex-start;}
+  .quot-logo-area{display:flex;align-items:center;gap:14px;}
+  .quot-logo-box{width:80px;height:80px;background:#fff;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+  .quot-logo-box img{width:72px;}
+  .quot-logo-text{font-family:'DM Serif Display',serif;font-size:16px;color:#fff;line-height:1.4;}
+  .quot-logo-text .addr{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:300;opacity:.7;margin-top:3px;line-height:1.6;}
+  .quot-title-area{text-align:right;}
+  .quot-title-word{font-family:'DM Serif Display',serif;font-size:28px;letter-spacing:3px;color:#fff;}
+  .quot-title-sub{font-size:10px;opacity:.55;letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+  /* Info grid below header */
+  .quot-info-row{display:flex;gap:0;border-bottom:2px solid var(--border);}
+  .quot-from-box{flex:1;padding:16px 24px;border-right:1px solid var(--border);}
+  .quot-to-box{flex:1;padding:16px 24px;border-right:1px solid var(--border);}
+  .quot-meta-box{width:260px;padding:0;}
+  .q-box-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink-light);margin-bottom:6px;}
+  .q-company{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+  .q-detail{font-size:11px;color:var(--ink-mid);line-height:1.7;}
+  .quot-meta-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .quot-meta-table tr:first-child td{padding-top:10px;}
+  .quot-meta-table tr:last-child td{padding-bottom:10px;}
+  .quot-meta-table td{padding:3px 14px;vertical-align:top;}
+  .quot-meta-table td:first-child{font-weight:600;color:var(--ink-mid);white-space:nowrap;width:72px;}
+  .quot-meta-table td:last-child{color:var(--ink);}
+  .quot-meta-table .qno-val{font-weight:700;color:var(--teal);}
+  /* Items section */
+  .quot-body{padding:0 32px 24px;}
+  .qsec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink-light);margin:18px 0 10px;}
+  /* Items table */
+  .qitems-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .qitems-table th{background:var(--surface);padding:8px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-light);border:1px solid var(--border);text-align:left;}
+  .qitems-table td{padding:10px 10px;border:1px solid var(--border);vertical-align:top;}
+  .qitems-table .td-no{width:32px;text-align:center;color:var(--ink-light);font-size:11px;}
+  .qitems-table .td-desc{color:var(--ink);}
+  .qitems-table .td-up{width:90px;text-align:right;font-weight:600;color:var(--ink);}
+  .qitems-table .td-qty{width:60px;text-align:center;color:var(--ink);}
+  .qitems-table .td-amt{width:100px;text-align:right;font-weight:700;color:var(--ink);}
+  .pkg-main-title{font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:5px;}
+  .pkg-item-line{font-size:11px;color:var(--ink-mid);padding:1.5px 0;display:flex;gap:6px;align-items:baseline;}
+  .pkg-item-line::before{content:"–";flex-shrink:0;color:var(--ink-light);}
+  .qitems-table .subtotal-row td{background:var(--surface);font-weight:600;font-size:11.5px;border-top:1.5px solid var(--border);}
+  .qitems-table .total-row td{background:var(--ink);color:#fff;font-weight:700;font-size:12px;}
+  .qitems-table .net-row td{font-weight:700;font-size:13px;border-top:2px solid var(--ink);}
+  .qitems-table .wht-row td{color:var(--coral);font-size:11px;}
+  .qitems-table .vat-note{font-size:10px;color:var(--ink-light);font-style:italic;}
+  /* Copy button */
+  .pkg-copy-btn{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--teal);background:var(--teal-light);border:none;border-radius:5px;padding:3px 9px;cursor:pointer;margin-top:4px;transition:all .15s;}
+  .pkg-copy-btn:hover{background:var(--teal);color:#fff;}
+  /* Remarks / TC */
+  .quot-remark{padding:0 32px 20px;}
+  .remark-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink-mid);margin-bottom:6px;}
+  .remark-static{font-size:11px;color:var(--ink-mid);line-height:1.8;margin-bottom:4px;}
+  .remark-editable{width:100%;font-size:11px;font-family:'DM Sans',sans-serif;color:var(--ink);line-height:1.8;border:1.5px dashed var(--border);border-radius:6px;padding:8px 10px;resize:vertical;min-height:80px;outline:none;transition:border .15s;background:#fffef0;}
+  .remark-editable:focus{border-color:var(--amber);}
+  .remark-hint{font-size:10px;color:var(--ink-light);font-style:italic;margin-bottom:6px;}
+  /* Signature */
+  .quot-sign{padding:16px 32px 32px;border-top:1.5px solid var(--border);display:flex;justify-content:space-between;gap:20px;}
+  .sign-col{flex:1;text-align:center;}
+  .sign-label{font-size:11px;color:var(--ink-light);margin-bottom:36px;}
+  .sign-line{border-top:1px solid var(--ink);margin:0 10px 4px;}
+  .sign-name{font-size:11px;color:var(--ink);}
+  .sign-date{font-size:10.5px;color:var(--ink-light);}
+  /* MODAL */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;}
+  .modal-overlay.active{display:flex;}
+  .modal{background:#fff;border-radius:14px;width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);}
+  .modal-hdr{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+  .modal-hdr h3{font-family:'DM Serif Display',serif;font-size:17px;}
+  .modal-cls{background:none;border:none;font-size:19px;cursor:pointer;color:var(--ink-light);}
+  .modal-body{padding:18px 22px;}
+  .modal-ftr{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:9px;}
+  .toast{position:fixed;bottom:22px;right:22px;background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:500;z-index:2000;transform:translateY(70px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:7px;}
+  .toast.show{transform:translateY(0);opacity:1;}
+  .toast.success{background:var(--green);} .toast.error{background:var(--coral);}
+  .fw7{font-weight:700;}
+  .no-pkg-msg{background:var(--teal-light);border:1.5px dashed var(--teal);border-radius:9px;padding:18px;text-align:center;color:var(--teal-dark);font-size:13px;}
+  .empty-state{text-align:center;padding:28px 16px;color:var(--ink-light);}
+  .empty-state .icon{font-size:32px;margin-bottom:8px;}
+  .empty-state p{font-size:13px;}
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .app-header,.left-panel,.tabs,.hdr-actions,.quot-wrap>div:first-child { display:none!important; }
+    .right-panel { overflow: visible !important; height: auto !important; }
+    .tab-content { overflow: visible !important; height: auto !important; }
+    #tab-quotation { display: block !important; overflow: visible !important; }
+    .quot-wrap { padding: 0 !important; overflow: visible !important; }
+    .quot-doc { box-shadow: none !important; border: none !important; border-radius: 0 !important; max-width: 100% !important; overflow: visible !important; }
+    .app-body { display: block !important; height: auto !important; overflow: visible !important; }
+    body { overflow: visible !important; }
+    .qpkg-hdr { background-color: #1a1f2e !important; color: white !important; }
+    .qtotal-row { background-color: #1a1f2e !important; color: white !important; }
+    .quot-hdr { background-color: #1a1f2e !important; }
+    .qth { background-color: #f8fafb !important; }
+    .q-footer-sign { page-break-inside: avoid; }
+  }
+
+  /* ── RECORDS TAB ── */
+  .records-area{padding:20px 24px;}
+  .records-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .records-toolbar h3{font-family:'DM Serif Display',serif;font-size:17px;}
+  .records-table-wrap{background:#fff;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;}
+  .records-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .records-table th{background:var(--surface);padding:9px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-light);border-bottom:1.5px solid var(--border);text-align:left;}
+  .records-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .records-table tr:last-child td{border-bottom:none;}
+  .records-table tr:hover td{background:#fafafa;}
+  .rec-status{padding:2px 8px;border-radius:12px;font-size:10.5px;font-weight:700;}
+  .rec-draft{background:#f1f5f9;color:#475569;}
+  .rec-sent{background:#d1fae5;color:#065f46;}
+  .rec-sync{background:#dbeafe;color:#1d4ed8;}
+  .rec-actions{display:flex;gap:6px;}
+  .sync-indicator{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--border);}
+  .sync-dot.connected{background:var(--green);}
+  .sync-dot.syncing{background:var(--amber);animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+  /* ── CATALOG MANAGER TAB ── */
+  .catmgr-area{padding:20px 24px;}
+  .catmgr-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .catmgr-toolbar h3{font-family:'DM Serif Display',serif;font-size:17px;}
+  .catmgr-table-wrap{background:#fff;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px;}
+  .catmgr-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .catmgr-table th{background:var(--surface);padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-light);border-bottom:1.5px solid var(--border);text-align:left;}
+  .catmgr-table td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .catmgr-table tr:last-child td{border-bottom:none;}
+  .catmgr-table tr.custom-item td{background:#fffef0;}
+  .custom-badge{background:var(--amber-light);color:#92400e;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;}
+  .builtin-badge{background:var(--teal-light);color:var(--teal-dark);font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;}
+  .add-item-form{background:#fff;border:1.5px solid var(--teal);border-radius:10px;padding:18px 20px;}
+  .add-item-form h4{font-family:'DM Serif Display',serif;font-size:15px;margin-bottom:14px;color:var(--teal-dark);}
+
+  /* ── SETTINGS TAB ── */
+  .settings-area{padding:20px 24px;max-width:640px;}
+  .settings-area h3{font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:18px;}
+  .settings-card{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:16px;}
+  .settings-card h4{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px;}
+  .settings-card p{font-size:12px;color:var(--ink-light);margin-bottom:12px;line-height:1.6;}
+  .setup-steps{background:var(--surface);border-radius:8px;padding:12px 16px;font-size:11.5px;color:var(--ink-mid);line-height:2;margin-bottom:12px;}
+  .setup-steps strong{color:var(--ink);}
+  .setup-steps code{background:var(--border);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:11px;}
+  .conn-status-row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;}
+  .gs-script-box{background:#1a1f2e;color:#a3e635;font-family:monospace;font-size:10.5px;padding:12px 14px;border-radius:8px;white-space:pre-wrap;line-height:1.6;margin:10px 0;}
+  .copy-code-btn{font-size:11px;background:var(--teal-light);color:var(--teal-dark);border:none;padding:3px 9px;border-radius:5px;cursor:pointer;font-weight:600;}
+  .copy-code-btn:hover{background:var(--teal);color:#fff;}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo">
+    Doctor Anywhere <span class="chip">TH</span>
+    <span class="sub">Health Screening Quotation Builder</span>
+  </div>
+  <div class="hdr-actions">
+    <button class="btn btn-ghost" onclick="switchTab('settings')" title="Settings & Google Sheets">⚙ Settings</button>
+    <button class="btn btn-ghost" onclick="resetAll()">↺ New</button>
+    <button class="btn btn-ghost" onclick="saveRecord()" title="Save to Records">💾 Save Record</button>
+    <button class="btn btn-ghost" onclick="openEmailModal()">✉ Send</button>
+    <button class="btn btn-primary" onclick="switchTab('quotation')">📄 Quotation</button>
+  </div>
+</header>
+
+<div class="app-body">
+  <!-- CATALOG -->
+  <div class="left-panel">
+    <div class="panel-hdr">
+      <h3>Lab Item Catalog</h3>
+      <div class="search-wrap">
+        <input type="text" id="searchInput" placeholder="Search code or name…" oninput="renderCatalog()">
+      </div>
+      <div class="filter-row">
+        <button class="fbtn active" onclick="setFilter('all',this)">All</button>
+        <button class="fbtn" onclick="setFilter('unit',this)">Per Unit Only</button>
+        <button class="fbtn" onclick="setFilter('MLL',this)">MLL</button>
+      </div>
+    </div>
+    <div class="catalog-list" id="catalogList"></div>
+  </div>
+
+  <div class="right-panel">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('setup')">① Setup</div>
+      <div class="tab" onclick="switchTab('packages')">② Build Packages</div>
+      <div class="tab" onclick="switchTab('preview')">③ Preview & Margin</div>
+      <div class="tab" onclick="switchTab('quotation')">④ Final Quotation</div>
+    </div>
+    <div class="tabs-secondary">
+      <div class="tab2" onclick="switchTab('records')" id="tab-btn-records">📋 Records <span id="rec-count-badge" style="background:var(--teal);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:3px;">0</span></div>
+      <div class="tab2" onclick="switchTab('catalog')">🧪 Catalog Manager</div>
+      <div class="tab2" onclick="switchTab('settings')">⚙ Settings</div>
+    </div>
+
+    <!-- SETUP -->
+    <div id="tab-setup" class="tab-content active">
+      <div class="form-area">
+        <div class="sec-label">Quotation Info</div>
+        <div class="form-row">
+          <div class="form-group"><label>Quotation No.</label><input type="text" id="quotNo" placeholder="e.g. QT-2026-001"></div>
+          <div class="form-group"><label>Date</label><input type="date" id="quotDate"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Valid Until</label><input type="date" id="quotValid"></div>
+          <div class="form-group"><label>Prepared By</label><input type="text" id="preparedBy" placeholder="e.g. Narikan Dankul"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Preparer Email</label><input type="email" id="prepEmail" placeholder="e.g. narikan.dankul@doctoranyhere.com"></div>
+          <div class="form-group"><label>Preparer Phone</label><input type="text" id="prepPhone" placeholder="e.g. 0838219222"></div>
+        </div>
+        <div class="divider"></div>
+        <div class="sec-label">Client Information</div>
+        <div class="form-row">
+          <div class="form-group"><label>Company Name *</label><input type="text" id="clientCompany" placeholder="e.g. SCG Chemicals Co., Ltd."></div>
+          <div class="form-group"><label>Contact Person</label><input type="text" id="clientContact" placeholder="e.g. Khun Somchai"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Client Email *</label><input type="email" id="clientEmail" placeholder="client@company.com"></div>
+          <div class="form-group"><label>Phone</label><input type="text" id="clientPhone" placeholder="+66 2 xxx xxxx"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Client Address</label><textarea id="clientAddr" style="min-height:60px;" placeholder="Full address for Bill To / Ship To"></textarea></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Tax ID</label><input type="text" id="clientTaxId" placeholder="e.g. 0113520000210"></div>
+          <div class="form-group"><label>Branch</label><input type="text" id="clientBranch" placeholder="e.g. Head Office / สาขาที่ 00000"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Additional Notes / Special Conditions</label><textarea id="quotNotes" placeholder="e.g. Special conditions, service date, location…"></textarea></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Standard Conditions (shown on quotation — edit freely)</label><textarea id="quotTC" style="min-height:140px;">- โปรแกรมตรวจพื้นฐาน คิดอัตราค่าบริการแบบเหมาจ่ายทั้งโปรแกรม
+- เป็นการตรวจนอกสถานที่จำนวน 1 สถานที่ ภายในเวลา 08.00 – 12.00 น.
+- จองวันตรวจล่วงหน้าอย่างน้อย 15 วัน
+- รายงานผลการตรวจ: แบ่งออกเป็น 2 แบบ ดังนี้
+  1) รายงานผลตรวจสุขภาพประจำปีสำหรับองค์กร (PDF) รับทางอีเมล
+  2) รายงานผลตรวจสุขภาพแบบรายบุคคลผ่านแอปพลิเคชั่น Doctor Anywhere
+- ระยะเวลาการส่งผล: ภายใน 30 วัน นับจากวันตรวจสุขภาพ
+- การชำระเงิน: ยอดการันตี 30 ท่าน
+  ยอดมัดจำ 50% ก่อนเข้ารับการตรวจ
+  จ่ายหลังเข้ารับการตรวจ 50%</textarea></div>
+        </div>
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:flex-end;"><button class="btn btn-primary" onclick="switchTab('packages')">Next: Build Packages →</button></div>
+      </div>
+    </div>
+
+    <!-- PACKAGES -->
+    <div id="tab-packages" class="tab-content">
+      <div class="pkg-area">
+        <div class="pkg-top">
+          <h3>Health Screening Packages</h3>
+          <button class="btn btn-primary" onclick="addPackage()">+ Add Package</button>
+        </div>
+        <div id="packagesContainer">
+          <div class="no-pkg-msg">No packages yet. Click <strong>"+ Add Package"</strong> then pick items from the catalog on the left.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PREVIEW -->
+    <div id="tab-preview" class="tab-content">
+      <div class="preview-area" id="previewArea"></div>
+    </div>
+
+    <!-- QUOTATION -->
+    <div id="tab-quotation" class="tab-content">
+      <div class="quot-wrap">
+        <div style="display:flex;gap:9px;margin-bottom:14px;">
+          <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
+          <button class="btn btn-primary" onclick="openEmailModal()">✉ Send by Email</button>
+        </div>
+        <div class="quot-doc" id="quotationDoc"></div>
+      </div>
+    </div>
+
+    <!-- RECORDS -->
+    <div id="tab-records" class="tab-content">
+      <div class="records-area">
+        <div class="records-toolbar">
+          <h3>Quotation Records</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div class="sync-indicator" id="syncStatus">
+              <div class="sync-dot" id="syncDot"></div>
+              <span id="syncLabel">Not connected to Google Sheets</span>
+            </div>
+            <button class="btn btn-sm btn-outline" onclick="syncAllToSheets()" id="syncBtn" style="display:none;">↑ Sync All</button>
+            <button class="btn btn-sm btn-primary" onclick="saveRecord()">+ Save Current</button>
+          </div>
+        </div>
+        <div class="records-table-wrap">
+          <table class="records-table">
+            <thead>
+              <tr>
+                <th>Quotation No.</th>
+                <th>Date</th>
+                <th>Client</th>
+                <th>Packages</th>
+                <th>Total Revenue</th>
+                <th>Margin</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recordsTableBody">
+              <tr><td colspan="8" style="text-align:center;padding:28px;color:var(--ink-light);">No records yet. Save a quotation to start tracking.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATALOG MANAGER -->
+    <div id="tab-catalog" class="tab-content">
+      <div class="catmgr-area">
+        <div class="catmgr-toolbar">
+          <h3>Lab Item Catalog Manager</h3>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-outline" onclick="exportCatalogCSV()">⬇ Export CSV</button>
+            <button class="btn btn-sm btn-outline" onclick="document.getElementById('importCSVInput').click()">⬆ Import CSV</button>
+            <input type="file" id="importCSVInput" accept=".csv" style="display:none" onchange="importCatalogCSV(event)">
+          </div>
+        </div>
+
+        <!-- Add New Item Form -->
+        <div class="add-item-form" style="margin-bottom:20px;">
+          <h4>+ Add New Lab Item</h4>
+          <div class="form-row">
+            <div class="form-group"><label>Service Code *</label><input type="text" id="ni-code" placeholder="e.g. OS124" style="text-transform:uppercase;"></div>
+            <div class="form-group"><label>Provider *</label>
+              <select id="ni-provider">
+                <option value="MLL">MLL</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Test Name (English) *</label><input type="text" id="ni-name" placeholder="e.g. Vitamin B12"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Description / Thai Name</label><input type="text" id="ni-desc" placeholder="e.g. ตรวจหาระดับวิตามินบี 12 ในเลือด"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Cost with Commission (THB)</label><input type="number" id="ni-costWC" placeholder="e.g. 450" min="0" step="0.01"></div>
+            <div class="form-group"><label>Commission %</label><input type="number" id="ni-comm" placeholder="e.g. 7" min="0" max="100" step="0.1" value="7"></div>
+            <div class="form-group"><label>Cost without Commission (THB) *</label><input type="number" id="ni-costNC" placeholder="e.g. 418.5" min="0" step="0.01"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="max-width:200px;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="ni-isLump" onchange="toggleLumpFields(this.checked)" style="width:16px;height:16px;">
+                Has Lump Sum floor
+              </label>
+            </div>
+            <div class="form-group" id="ni-lump-thresh-grp" style="display:none;"><label>Threshold (pax)</label><input type="number" id="ni-lumpThresh" placeholder="e.g. 100" min="1"></div>
+            <div class="form-group" id="ni-lump-cost-grp" style="display:none;"><label>Lump Cost NC (THB)</label><input type="number" id="ni-lumpCostNC" placeholder="e.g. 4650" min="0" step="0.01"></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+            <button class="btn btn-primary" onclick="addCustomItem()">+ Add to Catalog</button>
+            <span id="addItemMsg" style="font-size:12px;color:var(--green);"></span>
+          </div>
+        </div>
+
+        <!-- Auto-calc cost NC from WC + commission -->
+        <div style="background:var(--blue-light);border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:12px;color:#1d4ed8;margin-bottom:16px;">
+          💡 Tip: Enter <strong>Cost with Commission</strong> and <strong>Commission %</strong> → the app auto-calculates Cost NC. Or enter Cost NC directly.
+        </div>
+
+        <!-- Catalog Table -->
+        <div class="catmgr-table-wrap">
+          <table class="catmgr-table">
+            <thead>
+              <tr>
+                <th>Code</th><th>Test Name</th><th>Description</th>
+                <th>Cost NC</th><th>Provider</th><th>Lump?</th><th>Source</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="catmgrTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="tab-settings" class="tab-content">
+      <div class="settings-area">
+        <h3>⚙ Settings & Integrations</h3>
+
+        <!-- Google Sheets Setup -->
+        <div class="settings-card">
+          <h4>📊 Google Sheets Integration</h4>
+          <p>Connect to Google Sheets to save quotation records and custom catalog items across all team members. Uses Google Apps Script as a free backend.</p>
+
+          <div class="setup-steps">
+            <strong>Setup Steps (one-time, ~5 minutes):</strong><br>
+            1. Go to <strong>Google Sheets</strong> → create a new spreadsheet<br>
+            2. Click <strong>Extensions → Apps Script</strong><br>
+            3. Delete all code, paste the script below, click <strong>Save</strong><br>
+            4. Click <strong>Deploy → New deployment → Web app</strong><br>
+            5. Set <em>Execute as:</em> <code>Me</code> &nbsp; | &nbsp; <em>Who has access:</em> <code>Anyone</code><br>
+            6. Click <strong>Deploy</strong>, copy the <strong>Web App URL</strong>, paste below<br>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;color:var(--ink-mid);">Apps Script Code</span>
+            <button class="copy-code-btn" onclick="copyGASCode()">📋 Copy Code</button>
+          </div>
+          <div class="gs-script-box" id="gasCodeBlock">function doGet(e) {
+  const action   = e.parameter.action || 'ping';
+  const callback = e.parameter.callback || '';
+  const ss       = SpreadsheetApp.getActiveSpreadsheet();
+  let result     = {};
+
+  try {
+    // ── READS ──────────────────────────────────────────
+    if (action === 'ping') {
+      result = { ok: true, message: 'Connected to Google Sheets!' };
+
+    } else if (action === 'get_records') {
+      const sh = ss.getSheetByName('QuotationRecords');
+      if (!sh) { result = { records: [] }; }
+      else {
+        const rows = sh.getDataRange().getValues().slice(1);
+        result = { records: rows.map(r => ({
+          id:String(r[0]), quotNo:String(r[1]), date:String(r[2]),
+          client:String(r[3]), pkgCount:Number(r[4]), totalRevenue:Number(r[5]),
+          margin:String(r[6]), status:String(r[7]),
+          preparedBy:String(r[8]), savedAt:String(r[9])
+        }))};
+      }
+
+    } else if (action === 'get_catalog') {
+      const sh = ss.getSheetByName('CustomCatalog');
+      if (!sh) { result = { items: [] }; }
+      else {
+        const rows = sh.getDataRange().getValues().slice(1);
+        result = { items: rows.filter(r => r[0]).map(r => ({
+          code:String(r[0]), name:String(r[1]), desc:String(r[2]||''),
+          costNC:Number(r[3]), provider:String(r[4]||'MLL'),
+          isLump:r[5], lumpThreshold:r[6]||'', lumpCostNC:r[7]||''
+        }))};
+      }
+
+    // ── WRITES (via GET + payload param) ──────────────
+    } else if (action === 'save_record') {
+      const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      let sh = ss.getSheetByName('QuotationRecords');
+      if (!sh) {
+        sh = ss.insertSheet('QuotationRecords');
+        sh.appendRow(['ID','QuotNo','Date','Client','Packages','TotalRevenue','Margin','Status','PreparedBy','SavedAt','PackagesJSON']);
+        sh.setFrozenRows(1);
+      }
+      const rows = sh.getDataRange().getValues().slice(1);
+      const idx  = rows.findIndex(r => String(r[0]) === String(d.id));
+      const row  = [d.id, d.quotNo, d.date, d.client, d.pkgCount,
+                    d.totalRevenue, d.margin, d.status||'Draft', d.preparedBy||'',
+                    new Date().toISOString(), d.packagesJSON||''];
+      if (idx >= 0) { sh.getRange(idx+2, 1, 1, row.length).setValues([row]); }
+      else          { sh.appendRow(row); }
+      result = { ok: true };
+
+    } else if (action === 'save_catalog_item') {
+      const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      let sh = ss.getSheetByName('CustomCatalog');
+      if (!sh) {
+        sh = ss.insertSheet('CustomCatalog');
+        sh.appendRow(['Code','Name','Description','CostNC','Provider','IsLump','LumpThreshold','LumpCostNC','AddedAt']);
+        sh.setFrozenRows(1);
+      }
+      sh.appendRow([d.code, d.name, d.desc||'', d.costNC, d.provider||'MLL',
+                    d.isLump||false, d.lumpThreshold||'', d.lumpCostNC||'',
+                    new Date().toISOString()]);
+      result = { ok: true };
+
+    } else if (action === 'update_status') {
+      const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      const sh = ss.getSheetByName('QuotationRecords');
+      if (sh) {
+        const rows = sh.getDataRange().getValues();
+        for (let i = 1; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(d.id)) {
+            sh.getRange(i+1, 8).setValue(d.status);
+            break;
+          }
+        }
+      }
+      result = { ok: true };
+
+    } else {
+      result = { ok: false, error: 'Unknown action: ' + action };
+    }
+  } catch(err) {
+    result = { ok: false, error: err.toString() };
+  }
+
+  const json = JSON.stringify(result);
+  if (callback) {
+    return ContentService.createTextOutput(callback + '(' + json + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}</div>
+
+          <div class="form-row" style="margin-top:14px;margin-bottom:8px;">
+            <div class="form-group">
+              <label>Google Apps Script Web App URL</label>
+              <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/…/exec" onchange="saveSettings()" onblur="saveSettings()">
+            </div>
+          </div>
+          <div class="conn-status-row">
+            <div class="sync-dot" id="settingsSyncDot"></div>
+            <span id="settingsConnLabel" style="font-size:12px;color:var(--ink-light);">Enter URL above to connect</span>
+            <button class="btn btn-sm btn-outline" onclick="runTestConnection()" style="margin-left:8px;">Test Connection</button>
+          </div>
+        </div>
+
+        <!-- Data Management -->
+        <div class="settings-card">
+          <h4>🗂 Local Data</h4>
+          <p>All quotation records and custom catalog items are saved in your browser's localStorage. This data is per-device.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-outline" onclick="exportLocalData()">⬇ Export all data (JSON)</button>
+            <button class="btn btn-sm btn-outline" onclick="document.getElementById('importDataInput').click()">⬆ Import data (JSON)</button>
+            <input type="file" id="importDataInput" accept=".json" style="display:none" onchange="importLocalData(event)">
+            <button class="btn btn-sm btn-danger" onclick="clearAllLocalData()">🗑 Clear all local data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Email Modal -->
+<div class="modal-overlay" id="emailModal">
+  <div class="modal">
+    <div class="modal-hdr"><h3>Send Quotation by Email</h3><button class="modal-cls" onclick="closeEmailModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:12px;"><label>To</label><input type="email" id="emailTo"></div>
+      <div class="form-group" style="margin-bottom:12px;"><label>CC</label><input type="email" id="emailCc" placeholder="Optional"></div>
+      <div class="form-group" style="margin-bottom:12px;"><label>Subject</label><input type="text" id="emailSubject"></div>
+      <div class="form-group"><label>Message</label><textarea id="emailBody" style="min-height:130px;"></textarea></div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-outline" onclick="closeEmailModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="sendEmail()">Send ✉</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// LUMP SUM PAIRS
+// When a per-unit code is selected and pax < threshold,
+// effectiveCost = max(pax × costNC, lumpCostNC)
+// remaining     = lumpCostNC - pax × costNC  (if positive)
+// ═══════════════════════════════════════════════
+const LUMP_PAIRS = {
+  'OS001-1': { threshold:100, lumpCostNC:4650   },
+  'OS002-1': { threshold:100, lumpCostNC:6975   },
+  'OS003-1': { threshold:100, lumpCostNC:3255   },
+  'OS004-1': { threshold:100, lumpCostNC:4185   },
+  'OS005-1': { threshold:100, lumpCostNC:3255   },
+  'OS006-1': { threshold:100, lumpCostNC:3255   },
+  'OS007-1': { threshold:30,  lumpCostNC:2790   },
+  'OS008-1': { threshold:100, lumpCostNC:1860   },
+  'OS009-1': { threshold:100, lumpCostNC:1860   },
+  'OS010-1': { threshold:100, lumpCostNC:1860   },
+  'OS011-1': { threshold:30,  lumpCostNC:69750  },
+  'OS012-1': { threshold:30,  lumpCostNC:22320  },
+  'OS013-1': { threshold:30,  lumpCostNC:39060  },
+};
+
+// ═══════════════════════════════════════════════
+// CATALOG  (per-unit items only)
+// ═══════════════════════════════════════════════
+const CATALOG = [
+  {code:'OS001-1',name:'Physical Examination',desc:'ตรวจร่างกายทั่วไปโดยแพทย์',costNC:46.5,provider:'MLL'},
+  {code:'OS002-1',name:'Chest X-ray Digital',desc:'ตรวจเอกซเรย์ทรวงอกระบบดิจิตอล',costNC:69.75,provider:'MLL'},
+  {code:'OS003-1',name:'Hearing Test (In-Room)',desc:'ตรวจสมรรถภาพการได้ยิน ตรวจในห้องเงียบ',costNC:32.55,provider:'MLL'},
+  {code:'OS004-1',name:'Hearing Test (Mobile Booth)',desc:'ตรวจสมรรถภาพการได้ยิน ใช้ตู้เก็บเสียงบนรถเอกซเรย์',costNC:41.85,provider:'MLL'},
+  {code:'OS005-1',name:'Occupational Visual Test',desc:'ตรวจวัดสายตาอาชีวอนามัย',costNC:32.55,provider:'MLL'},
+  {code:'OS006-1',name:'Pulmonary Function Test',desc:'ตรวจสมรรถภาพการทำงานของปอด',costNC:32.55,provider:'MLL'},
+  {code:'OS007-1',name:'EKG',desc:'ตรวจคลื่นไฟฟ้าหัวใจ EKG',costNC:88.35,provider:'MLL'},
+  {code:'OS008-1',name:'Hand Muscle Test',desc:'ตรวจสมรรถภาพกล้ามเนื้อมือ',costNC:18.6,provider:'MLL'},
+  {code:'OS009-1',name:'Leg Muscle Test',desc:'ตรวจสมรรถภาพกล้ามเนื้อขา',costNC:18.6,provider:'MLL'},
+  {code:'OS010-1',name:'Back Muscle Test',desc:'ตรวจสมรรถภาพกล้ามเนื้อหลัง',costNC:18.6,provider:'MLL'},
+  {code:'OS011-1',name:'Mammogram',desc:'ตรวจ Mammogram',costNC:2325,provider:'MLL'},
+  {code:'OS012-1',name:'Upper Abdomen Ultrasound',desc:'อัลตร้าซาวด์ส่วนบน',costNC:744,provider:'MLL'},
+  {code:'OS013-1',name:'Upper+Lower Abdomen Ultrasound',desc:'อัลตร้าซาวด์ส่วนบน-ล่าง',costNC:1302,provider:'MLL'},
+  {code:'OS014',name:'CBC — Complete Blood Count',desc:'ตรวจความสมบูรณ์ของเม็ดเลือด',costNC:23.25,provider:'MLL'},
+  {code:'OS015',name:'Urinalysis',desc:'ตรวจความสมบูรณ์ของปัสสาวะ',costNC:18.6,provider:'MLL'},
+  {code:'OS016',name:'Cholesterol',desc:'ตรวจระดับไขมันในเลือด',costNC:27.9,provider:'MLL'},
+  {code:'OS017',name:'Triglyceride',desc:'ตรวจระดับไขมัน Triglyceride',costNC:34.41,provider:'MLL'},
+  {code:'OS018',name:'HDL Cholesterol',desc:'ตรวจระดับไขมันชนิดดี HDL',costNC:41.85,provider:'MLL'},
+  {code:'OS019',name:'LDL Cholesterol',desc:'ตรวจระดับไขมันชนิดไม่ดี LDL',costNC:41.85,provider:'MLL'},
+  {code:'OS020',name:'Fasting Blood Sugar (FBS)',desc:'ตรวจระดับน้ำตาลในเลือด',costNC:23.25,provider:'MLL'},
+  {code:'OS021',name:'Uric Acid',desc:'ตรวจหาระดับกรดยูริค',costNC:23.25,provider:'MLL'},
+  {code:'OS022',name:'BUN (Kidney)',desc:'ตรวจการทำงานของไต BUN',costNC:18.6,provider:'MLL'},
+  {code:'OS023',name:'Creatinine (Kidney)',desc:'ตรวจการทำงานของไต Creatinine',costNC:18.6,provider:'MLL'},
+  {code:'OS024',name:'SGOT (Liver)',desc:'ตรวจหาระดับเอนไซม์จากตับ SGOT',costNC:23.25,provider:'MLL'},
+  {code:'OS025',name:'SGPT (Liver)',desc:'ตรวจหาระดับเอนไซม์จากตับ SGPT',costNC:23.25,provider:'MLL'},
+  {code:'OS026',name:'Alkaline Phosphatase',desc:'ตรวจหาระดับเอนไซม์จากตับ ALP',costNC:23.25,provider:'MLL'},
+  {code:'OS027',name:'Total Bilirubin',desc:'ตรวจหาระดับบิลลิรูบินทั้งหมด',costNC:23.25,provider:'MLL'},
+  {code:'OS028',name:'Direct Bilirubin',desc:'ตรวจหาระดับบิลลิรูบินละลายน้ำได้',costNC:23.25,provider:'MLL'},
+  {code:'OS029',name:'Albumin',desc:'การตรวจหาปริมาณอัลบูมิน',costNC:23.25,provider:'MLL'},
+  {code:'OS030',name:'Total Protein',desc:'ตรวจหาปริมาณโปรตีนรวมในเลือด',costNC:23.25,provider:'MLL'},
+  {code:'OS031',name:'GGT (Liver)',desc:'ตรวจหาเอนไซม์ของทางเดินน้ำดีของตับ',costNC:111.6,provider:'MLL'},
+  {code:'OS032',name:'eGFR (Kidney)',desc:'ตรวจหาอัตราการกรองของเสียของไต',costNC:111.6,provider:'MLL'},
+  {code:'OS033',name:'Blood Group (ABO)',desc:'ตรวจหาหมู่เลือด',costNC:25.11,provider:'MLL'},
+  {code:'OS034',name:'VDRL (Syphilis)',desc:'ตรวจคัดกรองโรคซิฟิลิส',costNC:41.85,provider:'MLL'},
+  {code:'OS035',name:'HBsAg Strip (Hep B Ag)',desc:'ตรวจหาเชื้อไวรัสตับอักเสบบี Strip',costNC:46.5,provider:'MLL'},
+  {code:'OS036',name:'Anti-HBs Strip (Hep B Ab)',desc:'ตรวจหาภูมิคุ้มกันไวรัสตับอักเสบบี Strip',costNC:46.5,provider:'MLL'},
+  {code:'OS037',name:'HBsAg Chem (Hep B Ag)',desc:'ตรวจหาเชื้อไวรัสตับอักเสบบี Chem',costNC:93,provider:'MLL'},
+  {code:'OS038',name:'Anti-HBs Chem (Hep B Ab)',desc:'ตรวจหาภูมิคุ้มกันไวรัสตับอักเสบบี Chem',costNC:93,provider:'MLL'},
+  {code:'OS039',name:'Anti-HBc (Hep B Core)',desc:'ตรวจหาภาวะการติดเชื้อไวรัสตับอักเสบบี',costNC:167.4,provider:'MLL'},
+  {code:'OS040',name:'Anti-HIV Screening',desc:'ตรวจคัดกรองภาวะภูมิคุ้มกันบกพร่อง',costNC:232.5,provider:'MLL'},
+  {code:'OS041',name:'Amphetamine (Urine Drug Screen)',desc:'ตรวจหาสารเสพติดในปัสสาวะ',costNC:46.5,provider:'MLL'},
+  {code:'OS042',name:'Pregnancy Test',desc:'ตรวจการตั้งครรภ์',costNC:51.15,provider:'MLL'},
+  {code:'OS043',name:'Stool Exam (Parasite)',desc:'ตรวจอุจจาระหาพยาธิ',costNC:32.55,provider:'MLL'},
+  {code:'OS044',name:'Rectal Swab Culture',desc:'ตรวจอุจาระเพาะเชื้อ',costNC:55.8,provider:'MLL'},
+  {code:'OS045',name:'Anti-HAV IgM (Hep A)',desc:'ตรวจหาภูมิคุ้มกันไวรัสตับอักเสบ เอ IgM',costNC:232.5,provider:'MLL'},
+  {code:'OS046',name:'Anti-HAV IgG (Hep A)',desc:'ตรวจหาภูมิคุ้มกันไวรัสตับอักเสบ เอ IgG',costNC:232.5,provider:'MLL'},
+  {code:'OS047',name:'Anti-HCV Total (Hep C)',desc:'ตรวจหาภูมิคุ้มกันไวรัสตับอักเสบ ซี',costNC:241.8,provider:'MLL'},
+  {code:'OS048',name:'Rubella IgG',desc:'ตรวจหาภูมิคุ้มกันเชื้อไวรัสหัดเยอรมัน',costNC:409.2,provider:'MLL'},
+  {code:'OS049',name:'AFP (Liver Cancer Marker)',desc:'ตรวจหาสารบ่งชี้มะเร็งตับ',costNC:139.5,provider:'MLL'},
+  {code:'OS050',name:'CEA (GI/Colon Cancer Marker)',desc:'ตรวจหาสารบ่งชี้มะเร็งในทางเดินอาหาร',costNC:139.5,provider:'MLL'},
+  {code:'OS051',name:'PSA (Prostate Cancer Marker)',desc:'ตรวจหาสารบ่งชี้มะเร็งต่อมลูกหมาก',costNC:306.9,provider:'MLL'},
+  {code:'OS052',name:'CA125 (Ovarian Cancer Marker)',desc:'ตรวจหาสารบ่งชี้มะเร็งรังไข่',costNC:353.4,provider:'MLL'},
+  {code:'OS053',name:'CA19-9 (Pancreatic Cancer Marker)',desc:'ตรวจหาสารบ่งชี้มะเร็งกะเพาะ/ตับอ่อน/ถุงน้ำดี',costNC:353.4,provider:'MLL'},
+  {code:'OS054',name:'CA15-3 (Breast Cancer Marker)',desc:'ตรวจหาสารบ่งชี้มะเร็งเต้านม',costNC:353.4,provider:'MLL'},
+  {code:'OS055',name:'T3 (Thyroid)',desc:'ตรวจหาฮอร์โมนต่อมไทรอยด์ T3',costNC:158.1,provider:'MLL'},
+  {code:'OS056',name:'T4 (Thyroid)',desc:'ตรวจหาฮอร์โมนต่อมไทรอยด์ T4',costNC:158.1,provider:'MLL'},
+  {code:'OS057',name:'TSH (Thyroid Stimulating Hormone)',desc:'ตรวจหาฮอร์โมนต่อมไทรอยด์ TSH',costNC:158.1,provider:'MLL'},
+  {code:'OS058',name:'Free T3 (Thyroid)',desc:'ตรวจหาฮอร์โมนต่อมไทรอยด์ Free T3',costNC:455.7,provider:'MLL'},
+  {code:'OS059',name:'Free T4 (Thyroid)',desc:'ตรวจหาฮอร์โมนต่อมไทรอยด์ Free T4',costNC:158.1,provider:'MLL'},
+  {code:'OS060',name:'CPK (Muscle/Heart Enzyme)',desc:'ตรวจหาเอนไซม์กล้ามเนื้อ/กล้ามเนื้อหัวใจ',costNC:260.4,provider:'MLL'},
+  {code:'OS061',name:'hs-CRP (Inflammation)',desc:'ตรวจหาโปรตีนของการอักเสบ',costNC:241.8,provider:'MLL'},
+  {code:'OS062',name:'NT-proBNP (Heart Failure Risk)',desc:'ตรวจหาความเสี่ยงภาวะหัวใจล้มเหลว',costNC:1209,provider:'MLL'},
+  {code:'OS063',name:'Hb Typing (Thalassemia)',desc:'ตรวจหาโรคเลือดทางพันธุกรรม',costNC:353.4,provider:'MLL'},
+  {code:'OS064',name:'Phosphorus',desc:'ตรวจระดับฟอสฟอรัสในเลือด',costNC:60.45,provider:'MLL'},
+  {code:'OS065',name:'Calcium',desc:'ตรวจระดับแคลเซียมในเลือด',costNC:60.45,provider:'MLL'},
+  {code:'OS066',name:'Ferritin (Iron)',desc:'ตรวจหาระดับธาตุเหล็ก',costNC:530.1,provider:'MLL'},
+  {code:'OS067',name:'Rheumatoid Factor',desc:'ตรวจหาสารรูมาตอยด์',costNC:213.9,provider:'MLL'},
+  {code:'OS068',name:'25-OH Vitamin D',desc:'ตรวจระดับวิตามินดีในเลือด',costNC:1581,provider:'MLL'},
+  {code:'OS069',name:'G-6-PD (Enzyme Deficiency)',desc:'ตรวจหาภาวะพร่องเอนไซม์',costNC:251.1,provider:'MLL'},
+  {code:'OS070',name:'ANF (Autoimmune)',desc:'ตรวจหาภูมิคุ้มกันต่อต้านตัวเอง',costNC:353.4,provider:'MLL'},
+  {code:'OS071',name:'Testosterone',desc:'ตรวจหาปริมาณฮอร์โมนเพศชาย',costNC:492.9,provider:'MLL'},
+  {code:'OS072',name:'PAT (Antioxidant)',desc:'ตรวจการต่อต้านกับสารอนุมูลอิสระ',costNC:1515.9,provider:'MLL'},
+  {code:'OS073',name:'HPV DNA Test (Cervical Cancer)',desc:'ตรวจหาความเสี่ยงมะเร็งปากมดลูก — ต้องแจ้งล่วงหน้า',costNC:632.4,provider:'MLL'},
+  {code:'OS074',name:'NSE (Lung Cancer Marker)',desc:'ตรวจหาความเสี่ยงมะเร็งปอดจากเลือด',costNC:1116,provider:'MLL'},
+  {code:'OS075',name:'Flu Vaccine 4 Strains',desc:'วัคซีนไข้หวัดใหญ่ 4 สายพันธุ์ — ต้องแจ้งล่วงหน้า',costNC:446.4,provider:'MLL'},
+  {code:'OS076',name:'ESR',desc:'อัตราการตกตะกอนของเม็ดเลือดแดง',costNC:167.4,provider:'MLL'},
+  {code:'OS077',name:'HbA1c (Glycated Hemoglobin)',desc:'ตรวจน้ำตาลสะสมในเลือด',costNC:148.8,provider:'MLL'},
+  {code:'OS078',name:'QUAD Test (GI Bleeding)',desc:'ตรวจหาเลือดออกและการอักเสบในทางเดินอาหาร',costNC:1813.5,provider:'MLL'},
+  {code:'OS079',name:'Allergy Screen (107 allergens)',desc:'ตรวจหาภูมิแพ้ 107 ชนิด',costNC:2976,provider:'MLL'},
+  {code:'OS080',name:'AFB (TB Screening)',desc:'ตรวจคัดกรองเชื้อวัณโรค',costNC:74.4,provider:'MLL'},
+  {code:'OS081',name:'Stool Occult Blood',desc:'ตรวจหาเลือดออกในระบบทางเดินอาหาร',costNC:74.4,provider:'MLL'},
+  {code:'OS082',name:'Snack / Refreshment',desc:'ค่าอาหารว่าง ขนม+นม',costNC:13.95,provider:'MLL'},
+  {code:'OS088',name:'Lead in Blood (Pb)',desc:'EDTA 2 cc.',costNC:79.05,provider:'MLL'},
+  {code:'OS117',name:'Cholinesterase in Blood',desc:'EDTA 2 cc.',costNC:241.8,provider:'MLL'},
+  {code:'OS122',name:'Thin Prep (Pap Smear)',desc:'ตรวจมะเร็งปากมดลูก Thin Prep',costNC:790.5,provider:'MLL'},
+  {code:'OS123',name:'Typhoid Test',desc:'ตรวจหาเชื้อไข้ไทฟอยด์',costNC:102.3,provider:'MLL'},
+];
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let packages = [];
+let activeFilter = 'all';
+let pkgCounter = 0;
+
+// ═══════════════════════════════════════════════
+// COST ENGINE
+// ═══════════════════════════════════════════════
+function calcItemCost(code, costNC, pax) {
+  const pair = LUMP_PAIRS[code];
+  const perUnitTotal = costNC * pax;
+  if (!pair) {
+    return { perUnitTotal, lumpFloor:0, remaining:0, effectiveCost:perUnitTotal, isLumpApplied:false, isAboveThreshold:false };
+  }
+  if (pax >= pair.threshold) {
+    // Above threshold: pure per-unit, lump no longer applies
+    return { perUnitTotal, lumpFloor:pair.lumpCostNC, remaining:0, effectiveCost:perUnitTotal, isLumpApplied:false, isAboveThreshold:true };
+  }
+  // Below threshold: lump sum is the floor
+  const remaining = Math.max(0, pair.lumpCostNC - perUnitTotal);
+  return { perUnitTotal, lumpFloor:pair.lumpCostNC, remaining, effectiveCost:pair.lumpCostNC, isLumpApplied:true, isAboveThreshold:false };
+}
+
+function calcPkgTotals(pkg) {
+  let totalCost = 0;
+  const breakdown = pkg.items.map(item => {
+    const c = calcItemCost(item.code, item.costNC, pkg.pax);
+    totalCost += c.effectiveCost;
+    return { ...item, ...c };
+  });
+  const spRounded = roundUp1(pkg.sellingPricePerPax);
+  const totalRevenue = spRounded * pkg.pax;
+  const profit = totalRevenue - totalCost;
+  const margin = totalRevenue > 0 ? profit / totalRevenue : 0;
+  return { totalCost, totalRevenue, profit, margin, breakdown, spRounded };
+}
+
+// Round up to 1 decimal
+function roundUp1(val) { return Math.ceil((val || 0) * 10) / 10; }
+
+// Minimum margin by revenue tier
+function minMargin(revenue) {
+  if (revenue >= 1000000) return 0.07;
+  if (revenue >= 500000)  return 0.10;
+  return 0.12;
+}
+
+// Suggested min selling price per pax for a given target margin, rounded up to 1 decimal
+function suggestPrice(totalCost, pax, targetMargin) {
+  if (!pax) return 0;
+  return roundUp1(totalCost / pax / (1 - targetMargin));
+}
+
+// For suggestion table: given a suggested price per pax, what is actual margin?
+// Revenue = round(price, 1 decimal) * pax
+function actualMarginAtPrice(price, pax, totalCost) {
+  const rev = roundUp1(price) * pax;
+  return rev > 0 ? (rev - totalCost) / rev : 0;
+}
+
+function mClass(m) {
+  if (m >= 0.12) return 'ok';
+  if (m >= 0.07) return 'warn';
+  return 'bad';
+}
+
+// ═══════════════════════════════════════════════
+// CATALOG
+// ═══════════════════════════════════════════════
+function setFilter(f, el) {
+  activeFilter = f;
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderCatalog();
+}
+
+function renderCatalog() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  let items = CATALOG;
+  if (activeFilter === 'unit') items = items.filter(i => !LUMP_PAIRS[i.code]);
+  if (activeFilter === 'MLL')  items = items.filter(i => i.provider === 'MLL');
+  if (q) items = items.filter(i => i.code.toLowerCase().includes(q) || i.name.toLowerCase().includes(q));
+  const html = items.map(item => {
+    const pair = LUMP_PAIRS[item.code];
+    return `<div class="item-card" onclick="quickAdd('${item.code}')">
+      <div class="icode">${item.code}</div>
+      <div class="iinfo">
+        <div class="iname">${item.name}</div>
+        ${item.desc?`<div class="idesc">${item.desc.substring(0,68)}${item.desc.length>68?'…':''}</div>`:''}
+        <div class="imeta">
+          <span class="icost">฿${fmtN(item.costNC)}/person</span>
+          <span class="tag tag-mll">${item.provider}</span>
+          ${pair?`<span class="tag tag-lump">⚡ Lump &lt;${pair.threshold} pax</span>`:`<span class="tag tag-unit">Per Unit</span>`}
+        </div>
+      </div>
+      <button class="add-btn" onclick="event.stopPropagation();quickAdd('${item.code}')" title="Add to package">+</button>
+    </div>`;
+  }).join('');
+  document.getElementById('catalogList').innerHTML = html || '<div class="empty-state"><div class="icon">🔍</div><p>No items found</p></div>';
+}
+
+// ═══════════════════════════════════════════════
+// PACKAGE MANAGEMENT
+// ═══════════════════════════════════════════════
+function addPackage() {
+  pkgCounter++;
+  packages.push({ id:'pkg_'+Date.now(), name:`Package ${pkgCounter}`, pax:100, sellingPricePerPax:0, items:[] });
+  renderPackages();
+}
+function removePackage(id) { packages = packages.filter(p=>p.id!==id); renderPackages(); }
+function quickAdd(code) { if (!packages.length) addPackage(); addItemToPkg(packages[packages.length-1].id, code); }
+function addItemToPkg(pkgId, code) {
+  const pkg = packages.find(p=>p.id===pkgId);
+  const ref = CATALOG.find(i=>i.code===code);
+  if (!pkg||!ref) return;
+  if (pkg.items.find(i=>i.code===code)) { showToast(`${code} already in ${pkg.name}`,''); return; }
+  pkg.items.push({code:ref.code, name:ref.name, desc:ref.desc, costNC:ref.costNC, provider:ref.provider});
+  renderPackages();
+  showToast(`+ ${ref.code} → ${pkg.name}`,'success');
+}
+function removeItem(pkgId, code) {
+  const pkg = packages.find(p=>p.id===pkgId);
+  if (pkg) { pkg.items = pkg.items.filter(i=>i.code!==code); renderPackages(); }
+}
+function updatePax(pkgId, val) {
+  const pkg = packages.find(p=>p.id===pkgId);
+  if (!pkg) return;
+  pkg.pax = Math.max(1, parseInt(val)||1);
+  refreshPkgTotals(pkgId);
+}
+function updateSP(pkgId, val) {
+  const pkg = packages.find(p=>p.id===pkgId);
+  if (!pkg) return;
+  pkg.sellingPricePerPax = parseFloat(val)||0;
+  refreshPkgTotals(pkgId);
+}
+function updateName(pkgId, val) { const pkg=packages.find(p=>p.id===pkgId); if(pkg) pkg.name=val; }
+
+// Lightweight update — only replaces the totals/suggestion block, never touches inputs
+function refreshPkgTotals(pkgId) {
+  const pkg = packages.find(p=>p.id===pkgId);
+  if (!pkg) return;
+  const t = calcPkgTotals(pkg);
+  const mc = mClass(t.margin);
+  const minM = minMargin(t.totalRevenue);
+  const marginOk = t.margin >= minM;
+
+  // Update the pax info pill if present
+  const paxInfoEl = document.getElementById('pax-info-'+pkgId);
+  if (paxInfoEl) {
+    paxInfoEl.innerHTML = pkg.sellingPricePerPax > 0
+      ? `Rounded ฿${fmtND(t.spRounded)}/pax × ${pkg.pax} = <strong>฿${fmtN(t.totalRevenue)}</strong>`
+      : '';
+    paxInfoEl.style.display = pkg.sellingPricePerPax > 0 ? '' : 'none';
+  }
+
+  // Re-render items rows (lump status changes with pax)
+  const tbody = document.getElementById('items-tbody-'+pkgId);
+  if (tbody) tbody.innerHTML = buildItemRows(pkg, t);
+
+  // Re-render totals block
+  const totalsEl = document.getElementById('totals-'+pkgId);
+  if (totalsEl) totalsEl.innerHTML = buildTotalsHTML(pkg, t, mc, minM, marginOk);
+}
+
+// ═══════════════════════════════════════════════
+// RENDER PACKAGES
+// ═══════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════
+// HELPER: build item rows HTML (shared by renderPackages & refreshPkgTotals)
+// ═══════════════════════════════════════════════
+function buildItemRows(pkg, t) {
+  return t.breakdown.map(item => {
+    let statusTag = '', remNote = '';
+    if (item.isLumpApplied) {
+      statusTag = `<span class="lump-floor-badge">⚡ Lump floor — ${pkg.pax} pax &lt; ${LUMP_PAIRS[item.code].threshold} threshold</span>`;
+      remNote   = `<div class="rem-note">฿${fmtN(item.perUnitTotal)} per-unit + ฿${fmtN(item.remaining)} remaining = ฿${fmtN(item.effectiveCost)} lump floor</div>`;
+    } else if (item.isAboveThreshold) {
+      statusTag = `<span class="above-thresh">✓ Above threshold — pure per-unit</span>`;
+    }
+    return `<tr class="${item.isLumpApplied?'lump-floor-row':''}">
+      <td><span class="icode" style="font-size:10px;">${item.code}</span></td>
+      <td><div>${item.name}</div>${statusTag}${remNote}</td>
+      <td>฿${fmtN(item.costNC)}</td>
+      <td>${pkg.pax} × ฿${fmtN(item.costNC)} = ฿${fmtN(item.perUnitTotal)}</td>
+      <td class="fw7">฿${fmtN(item.effectiveCost)}</td>
+      <td><button class="rmv-btn" onclick="removeItem('${pkg.id}','${item.code}')">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// HELPER: build totals + suggestion box HTML
+// ═══════════════════════════════════════════════
+function buildTotalsHTML(pkg, t) {
+  if (!pkg.items.length) return '';
+  const mc = mClass(t.margin);
+  const minM = minMargin(t.totalRevenue);
+  const marginOk = t.margin >= minM;
+  const TIERS = [
+    { label:'< 500K THB',  minM:0.12 },
+    { label:'500K–1M THB', minM:0.10 },
+    { label:'≥ 1M THB',    minM:0.07 },
+  ];
+  const suggestRows = TIERS.map(tier => {
+    const sp  = suggestPrice(t.totalCost, pkg.pax, tier.minM);
+    const rev = sp * pkg.pax;
+    const m   = actualMarginAtPrice(sp, pkg.pax, t.totalCost);
+    const tierMatch = (tier.label==='< 500K THB'  && t.totalRevenue<500000)
+                   || (tier.label==='500K–1M THB' && t.totalRevenue>=500000 && t.totalRevenue<1000000)
+                   || (tier.label==='≥ 1M THB'    && t.totalRevenue>=1000000);
+    const curOk = t.spRounded >= sp && t.totalRevenue > 0;
+    return `<tr class="${tierMatch?'cur-tier':''}">
+      <td><strong>Min ${(tier.minM*100).toFixed(0)}%</strong><br><span style="font-size:11px;color:var(--ink-light);">${tier.label}</span></td>
+      <td class="s-price">฿${fmtND(sp)} / pax</td>
+      <td>฿${fmtN(rev)}</td>
+      <td><span class="s-badge m-${mClass(m)}">${(m*100).toFixed(1)}%</span></td>
+      <td>${tierMatch?'<span style="font-size:11px;color:var(--blue);font-weight:600;">← Active tier</span>':''}</td>
+      <td>${(curOk&&tierMatch)?'<span class="s-cur">✓ Met</span>':''}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="totals-grid">
+      <div class="tot-item"><div class="tl">Total Lab Cost (NC)</div><div class="tv">฿${fmtN(t.totalCost)}</div></div>
+      <div class="tot-item"><div class="tl">Total Revenue</div><div class="tv">฿${fmtN(t.totalRevenue)}</div></div>
+      <div class="tot-item"><div class="tl">Profit</div><div class="tv" style="color:${t.profit>=0?'var(--green)':'var(--coral)'}">฿${fmtN(t.profit)}</div></div>
+      <div class="tot-item"><div class="tl">% Margin</div><div class="tv"><span class="mbadge m-${mc}">${(t.margin*100).toFixed(1)}%</span></div></div>
+      <div class="tot-item"><div class="tl">Lab Cost/Pax</div><div class="tv">฿${fmtND(pkg.pax?t.totalCost/pkg.pax:0)}</div></div>
+    </div>
+    ${!marginOk && t.totalRevenue>0 ? `<div class="malert ${t.margin<0?'bad':'warn'}">⚠ Below required ${(minM*100).toFixed(0)}% margin for this revenue tier. Minimum price: ฿${fmtND(suggestPrice(t.totalCost,pkg.pax,minM))}/pax</div>` : ''}
+    <div class="suggest-box">
+      <div class="suggest-hdr">💡 Suggested Selling Price by Margin Tier (price rounded up to 1 decimal)</div>
+      <table class="suggest-table">
+        <thead><tr><th>Min Margin / Revenue Tier</th><th>Min Price/Pax</th><th>Total Revenue</th><th>Achieved Margin</th><th>Current Tier</th><th>Status</th></tr></thead>
+        <tbody>${suggestRows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// Lightweight refresh — updates totals/rows WITHOUT re-rendering inputs
+// Called on pax/SP change so focus is never lost
+// ═══════════════════════════════════════════════
+function refreshPkgTotals(pkgId) {
+  const pkg = packages.find(p=>p.id===pkgId);
+  if (!pkg) return;
+  const t = calcPkgTotals(pkg);
+
+  // Update pax info pill
+  const infoEl = document.getElementById('pax-info-'+pkgId);
+  if (infoEl) {
+    if (pkg.sellingPricePerPax > 0) {
+      infoEl.innerHTML = `Rounded ฿${fmtND(t.spRounded)}/pax × ${pkg.pax} = <strong>฿${fmtN(t.totalRevenue)}</strong>`;
+      infoEl.style.display = '';
+    } else {
+      infoEl.style.display = 'none';
+    }
+  }
+
+  // Update item rows (lump threshold status changes with pax)
+  const tbody = document.getElementById('items-tbody-'+pkgId);
+  if (tbody) tbody.innerHTML = buildItemRows(pkg, t);
+
+  // Update totals + suggestion box
+  const totalsEl = document.getElementById('totals-'+pkgId);
+  if (totalsEl) totalsEl.innerHTML = buildTotalsHTML(pkg, t);
+}
+
+function renderPackages() {
+  const c = document.getElementById('packagesContainer');
+  if (!packages.length) {
+    c.innerHTML = `<div class="no-pkg-msg">No packages yet. Click <strong>"+ Add Package"</strong> then pick items from the catalog.</div>`;
+    return;
+  }
+  c.innerHTML = packages.map((pkg, pi) => {
+    const t = calcPkgTotals(pkg);
+
+    const itemsSection = pkg.items.length === 0
+      ? `<div class="empty-state"><div class="icon">🧪</div><p>Click items in the catalog to populate this package.</p></div>`
+      : `<table class="sel-table">
+          <thead><tr>
+            <th>Code</th><th>Test Item</th>
+            <th>Cost/pax (NC)</th><th>Pax × Rate</th>
+            <th>Effective Cost</th><th></th>
+          </tr></thead>
+          <tbody id="items-tbody-${pkg.id}">${buildItemRows(pkg, t)}</tbody>
+        </table>`;
+
+    const totalsBlock = pkg.items.length > 0
+      ? `<div class="pkg-totals" id="totals-${pkg.id}">${buildTotalsHTML(pkg, t)}</div>`
+      : `<div id="totals-${pkg.id}"></div>`;
+
+    return `<div class="pkg-card">
+      <div class="pkg-card-hdr">
+        <span class="pkg-badge">PKG ${pi+1}</span>
+        <input class="pkg-name-inp" value="${pkg.name}" oninput="updateName('${pkg.id}',this.value)" placeholder="Package name…">
+        <div class="pkg-actions">
+          <button class="btn btn-sm btn-danger" onclick="removePackage('${pkg.id}')">✕ Remove</button>
+        </div>
+      </div>
+      <div class="pkg-body">
+        <div class="pax-row">
+          <div class="form-group">
+            <label>No. of Pax <span style="font-size:10.5px;color:var(--teal);font-weight:600;">(= qty for all items)</span></label>
+            <input type="number" min="1" value="${pkg.pax}"
+              id="pax-input-${pkg.id}"
+              onchange="updatePax('${pkg.id}',this.value)"
+              onblur="updatePax('${pkg.id}',this.value)"
+              style="width:130px;">
+          </div>
+          <div class="form-group">
+            <label>Selling Price / Pax (THB)</label>
+            <input type="number" min="0" step="0.1" value="${pkg.sellingPricePerPax}"
+              id="sp-input-${pkg.id}"
+              onchange="updateSP('${pkg.id}',this.value)"
+              onblur="updateSP('${pkg.id}',this.value)"
+              style="width:160px;">
+          </div>
+          <div class="pax-info" id="pax-info-${pkg.id}" style="${pkg.sellingPricePerPax>0?'':'display:none'}">
+            Rounded ฿${fmtND(t.spRounded)}/pax × ${pkg.pax} = <strong>฿${fmtN(t.totalRevenue)}</strong>
+          </div>
+        </div>
+        ${itemsSection}
+        ${totalsBlock}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// PREVIEW TAB
+// ═══════════════════════════════════════════════
+function renderPreview() {
+  const area = document.getElementById('previewArea');
+  if (!packages.length) {
+    area.innerHTML = '<div class="empty-state" style="padding:50px"><div class="icon">📦</div><p>Build packages first.</p></div>';
+    return;
+  }
+  let totalRev=0, totalCost=0;
+  packages.forEach(p => { const t=calcPkgTotals(p); totalRev+=t.totalRevenue; totalCost+=t.totalCost; });
+  const profit = totalRev - totalCost;
+  const margin = totalRev>0 ? profit/totalRev : 0;
+  const minM   = minMargin(totalRev);
+  const ok     = margin >= minM;
+  const mc     = mClass(margin);
+
+  area.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card hi"><div class="sl">Total Revenue</div><div class="sv">฿${fmtN(totalRev)}</div><div class="ss">${packages.length} package(s)</div></div>
+      <div class="stat-card"><div class="sl">Total Lab Cost</div><div class="sv">฿${fmtN(totalCost)}</div><div class="ss">To pay lab partner (NC)</div></div>
+      <div class="stat-card"><div class="sl">Total Profit</div><div class="sv" style="color:${profit>=0?'var(--green)':'var(--coral)'}">฿${fmtN(profit)}</div><div class="ss">${profit>=0?'Positive':'Loss'}</div></div>
+      <div class="stat-card"><div class="sl">Overall % Margin</div><div class="sv"><span class="mbadge m-${mc}">${(margin*100).toFixed(1)}%</span></div><div class="ss">Min required: ${(minM*100).toFixed(0)}%</div></div>
+    </div>
+    <div class="policy-box">
+      <h4>Minimum Margin Policy</h4>
+      <div class="policy-rules">
+        <div class="policy-rule"><div class="dot dot-g"></div>Revenue ≥ 1M THB → min <strong>7%</strong></div>
+        <div class="policy-rule"><div class="dot dot-a"></div>Revenue 500K–1M THB → min <strong>10%</strong></div>
+        <div class="policy-rule"><div class="dot dot-r"></div>Revenue &lt; 500K THB → min <strong>12%</strong></div>
+      </div>
+    </div>
+    <div class="overall-status ${ok?'os-ok':margin>=0?'os-warn':'os-bad'}">
+      ${ok?'✓ Quotation meets minimum margin requirement':`⚠ Overall margin ${(margin*100).toFixed(1)}% is below the required ${(minM*100).toFixed(0)}% for ฿${fmtN(totalRev)} total revenue`}
+    </div>
+    <h4 style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:14px;">Package Breakdown (Internal)</h4>
+    ${packages.map(pkg => {
+      const t = calcPkgTotals(pkg);
+      const mc2 = mClass(t.margin);
+      return `<div class="prev-pkg">
+        <div class="prev-pkg-hdr">
+          <h4>${pkg.name} — ${pkg.pax} pax</h4>
+          <div class="ppstats">
+            <div class="pps"><div class="pl">Lab Cost</div><div class="pv">฿${fmtN(t.totalCost)}</div></div>
+            <div class="pps"><div class="pl">Revenue</div><div class="pv">฿${fmtN(t.totalRevenue)}</div></div>
+            <div class="pps"><div class="pl">Profit</div><div class="pv" style="color:${t.profit>=0?'#6ee7b7':'#fca5a5'}">฿${fmtN(t.profit)}</div></div>
+            <div class="pps"><div class="pl">Margin</div><div class="pv"><span class="mbadge m-${mc2}" style="font-size:11.5px;">${(t.margin*100).toFixed(1)}%</span></div></div>
+            <div class="pps"><div class="pl">Price/Pax</div><div class="pv">฿${fmtND(t.spRounded)}</div></div>
+          </div>
+        </div>
+        <table class="prev-table">
+          <thead><tr><th>Code</th><th>Item</th><th>Cost/pax</th><th>Per-Unit Total</th><th>Lump Adj.</th><th>Effective Cost</th></tr></thead>
+          <tbody>
+            ${t.breakdown.map(item=>`<tr class="${item.isLumpApplied?'lump-adj':''}">
+              <td>${item.code}</td>
+              <td>${item.name}</td>
+              <td>฿${fmtN(item.costNC)}</td>
+              <td>฿${fmtN(item.perUnitTotal)}</td>
+              <td>${item.isLumpApplied?`<span style="color:#92400e;font-weight:700;">+฿${fmtN(item.remaining)}</span>`:item.isAboveThreshold?'<span style="color:var(--green);font-size:11px;">above threshold</span>':'-'}</td>
+              <td class="fw7">฿${fmtN(item.effectiveCost)}</td>
+            </tr>`).join('')}
+            <tr style="background:var(--surface);">
+              <td colspan="5" style="text-align:right;font-weight:700;padding:8px 12px;">Total Lab Cost</td>
+              <td class="fw7">฿${fmtN(t.totalCost)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+    }).join('')}
+  `;
+}
+
+// ═══════════════════════════════════════════════
+// QUOTATION
+// ═══════════════════════════════════════════════
+function renderQuotation() {
+  const company   = v('clientCompany') || 'Client Company';
+  const contact   = v('clientContact');
+  const email     = v('clientEmail');
+  const phone     = v('clientPhone');
+  const taxId     = v('clientTaxId') || '';
+  const branch    = v('clientBranch') || '';
+  const addr      = v('clientAddr') || '';
+  const quotNo    = v('quotNo') || 'QT-' + new Date().getFullYear() + '-001';
+  const quotDate  = v('quotDate')  ? fmt(v('quotDate'))  : today();
+  const validUntil= v('quotValid') ? fmt(v('quotValid')) : '';
+  const prepBy    = v('preparedBy') || 'Narikan Dankul';
+  const prepEmail = v('prepEmail')  || 'narikan.dankul@doctoranyhere.com';
+  const prepPhone = v('prepPhone')  || '0838219222';
+  const notes     = v('quotNotes');
+  const tc        = v('quotTC');
+
+  let grand = 0, totalWHT = 0;
+  packages.forEach(p => {
+    const t = calcPkgTotals(p);
+    grand += t.totalRevenue;
+  });
+  const vatAmt = 0; // Medical services VAT exempt
+  const whtAmt = Math.round(grand * 0.03 * 100) / 100;
+  const netPay = grand - whtAmt;
+
+  // Build package rows
+  const pkgRows = !packages.length
+    ? `<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--ink-light);">No packages built yet.</td></tr>`
+    : packages.map((pkg, i) => {
+        const t = calcPkgTotals(pkg);
+        // Build copy text for this package
+        const copyText = `${pkg.name}\n` + pkg.items.map(item =>
+          `  - ${item.name}${item.desc ? '  ' + item.desc : ''}`
+        ).join('\n');
+
+        const subList = pkg.items.map(item =>
+          `<div class="pkg-item-line"><span><strong>${item.name}</strong>${item.desc ? '&nbsp;&nbsp;' + item.desc : ''}</span></div>`
+        ).join('');
+
+        return `<tr>
+          <td class="td-no">${i+1}</td>
+          <td class="td-desc">
+            <div class="pkg-main-title">รายการตรวจสุขภาพ — ${pkg.name}</div>
+            ${subList}
+            <button class="pkg-copy-btn" onclick="copyPkgText(${i})" title="Copy package details">📋 Copy package detail</button>
+          </td>
+          <td class="td-up">${fmtND(t.spRounded)}</td>
+          <td class="td-qty">${pkg.pax}</td>
+          <td class="td-amt">${fmtN(t.totalRevenue)}</td>
+        </tr>`;
+      }).join('');
+
+  // WHT row
+  const summaryRows = packages.length ? `
+    <tr class="subtotal-row">
+      <td colspan="4" style="text-align:right;padding:8px 10px;">Subtotal</td>
+      <td class="td-amt" style="padding:8px 10px;">${fmtN(grand)}</td>
+    </tr>
+    <tr>
+      <td colspan="4" style="padding:7px 10px;text-align:right;">
+        <span>VAT 0% (some items)</span><br>
+        <span class="vat-note">(VAT Exempt – Medical services per Revenue Code Sec. 81/1(7))</span>
+      </td>
+      <td class="td-amt" style="padding:7px 10px;">0.00</td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="4" style="padding:9px 10px;text-align:right;background:var(--ink);color:#fff;font-weight:700;">Total</td>
+      <td class="td-amt" style="padding:9px 10px;background:var(--ink);color:#fff;">${fmtN(grand)}</td>
+    </tr>
+    <tr class="wht-row">
+      <td colspan="4" style="padding:7px 10px;text-align:right;">
+        <span style="font-weight:600;color:var(--coral);">Withholding Tax 3%</span><br>
+        <span style="font-size:10px;color:var(--ink-light);">(Client to deduct 3% withholding tax from service fee)</span>
+      </td>
+      <td class="td-amt" style="padding:7px 10px;color:var(--coral);">(${fmtN(whtAmt)})</td>
+    </tr>
+    <tr class="net-row">
+      <td colspan="4" style="padding:10px 10px;text-align:right;font-weight:700;font-size:13px;">Net Payment</td>
+      <td class="td-amt" style="padding:10px 10px;font-size:14px;">${fmtN(netPay)}</td>
+    </tr>` : '';
+
+  const tcContent = tc || `- โปรแกรมตรวจพื้นฐาน คิดอัตราค่าบริการแบบเหมาจ่ายทั้งโปรแกรม\n- เป็นการตรวจนอกสถานที่จำนวน 1 สถานที่ ภายในเวลา 08.00 – 12.00 น.\n- จองวันตรวจล่วงหน้าอย่างน้อย 15 วัน\n- รายงานผลการตรวจ: แบ่งออกเป็น 2 แบบ ดังนี้\n  1) รายงานผลตรวจสุขภาพประจำปีสำหรับองค์กร (PDF) รับทางอีเมล\n  2) รายงานผลตรวจสุขภาพแบบรายบุคคลผ่านแอปพลิเคชั่น Doctor Anywhere\n- ระยะเวลาการส่งผล: ภายใน 30 วัน นับจากวันตรวจสุขภาพ\n- การชำระเงิน: ยอดการันตี 30 ท่าน\n  ยอดมัดจำ 50% ก่อนเข้ารับการตรวจ\n  จ่ายหลังเข้ารับการตรวจ 50%`;
+
+  document.getElementById('quotationDoc').innerHTML = `
+    <!-- HEADER BAND -->
+    <div class="quot-hdr">
+      <div class="quot-logo-area">
+        <div class="quot-logo-box">
+          <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" width="72">
+            <circle cx="40" cy="40" r="38" fill="#1D9E75"/>
+            <text x="40" y="30" text-anchor="middle" font-family="serif" font-size="14" font-weight="bold" fill="white">DA</text>
+            <text x="40" y="44" text-anchor="middle" font-family="sans-serif" font-size="6" fill="white">DOCTOR</text>
+            <text x="40" y="53" text-anchor="middle" font-family="sans-serif" font-size="6" fill="white">ANYWHERE</text>
+            <rect x="25" y="58" width="30" height="3" rx="1.5" fill="white" opacity="0.6"/>
+          </svg>
+        </div>
+        <div class="quot-logo-text">
+          <div style="font-size:17px;font-weight:700;">Doctor Anywhere Clinic Co., Ltd</div>
+          <div class="addr">
+            1 Empire Tower, 21st Floor, Unit 2110,<br>
+            Sathorn Road, South Sathon Rd, Yan Nawa, Sathon, 10120<br>
+            Tax ID: 0105563121029 &nbsp;|&nbsp; Branch: Head Office
+          </div>
+        </div>
+      </div>
+      <div class="quot-title-area">
+        <div class="quot-title-word">QUOTATION</div>
+        <div class="quot-title-sub">(Draft)</div>
+      </div>
+    </div>
+
+    <!-- INFO ROW: Bill To / Ship To / Meta -->
+    <div class="quot-info-row">
+      <div class="quot-from-box">
+        <div class="q-box-label">Bill to:</div>
+        <div class="q-company">${company}</div>
+        ${addr ? `<div class="q-detail">${addr}</div>` : ''}
+        ${taxId ? `<div class="q-detail">Tax ID: ${taxId}</div>` : ''}
+        ${branch ? `<div class="q-detail">Branch: ${branch}</div>` : ''}
+        ${contact ? `<div class="q-detail" style="margin-top:4px;">Attn: ${contact}</div>` : ''}
+      </div>
+      <div class="quot-to-box">
+        <div class="q-box-label">Ship to:</div>
+        <div class="q-company">${company}</div>
+        ${addr ? `<div class="q-detail">${addr}</div>` : ''}
+        ${contact ? `<div class="q-detail" style="margin-top:4px;">Attn: ${contact}</div>` : ''}
+      </div>
+      <div class="quot-meta-box">
+        <table class="quot-meta-table">
+          <tr><td>Quotation No.:</td><td class="qno-val">${quotNo}</td></tr>
+          <tr><td>Date</td><td>${quotDate}</td></tr>
+          <tr><td>Expired Date</td><td>${validUntil || '—'}</td></tr>
+          <tr><td>From</td><td>${prepBy}</td></tr>
+          <tr><td>E-mail</td><td>${prepEmail}</td></tr>
+          <tr><td>Phone</td><td>${prepPhone}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ITEMS TABLE -->
+    <div class="quot-body">
+      <table class="qitems-table">
+        <thead>
+          <tr>
+            <th class="td-no">No.</th>
+            <th>Description</th>
+            <th class="td-up" style="text-align:right;">Unit Price</th>
+            <th class="td-qty" style="text-align:center;">Quantity</th>
+            <th class="td-amt" style="text-align:right;">Amount THB</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pkgRows}
+          ${summaryRows}
+        </tbody>
+      </table>
+      <div style="font-size:10.5px;color:var(--ink-light);margin-top:8px;font-style:italic;">
+        *Please deduct 3% withholding tax from our service fee*
+      </div>
+    </div>
+
+    <!-- REMARK / TERMS -->
+    <div class="quot-remark">
+      <div class="remark-label">Remark :</div>
+      <div class="remark-static">Condition:</div>
+      <div class="remark-hint">✏ Edit conditions below — changes show on print/quotation:</div>
+      <textarea class="remark-editable" id="quot-tc-inline" onchange="syncTC(this.value)" oninput="syncTC(this.value)">${tcContent.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+      ${notes ? `<div style="margin-top:10px;font-size:11px;color:var(--ink-mid);"><strong>Additional Notes:</strong> ${notes}</div>` : ''}
+    </div>
+
+    <!-- SIGNATURE ROW -->
+    <div class="quot-sign q-footer-sign">
+      <div class="sign-col">
+        <div class="sign-label">Accepted By</div>
+        <div class="sign-line"></div>
+        <div class="sign-name">(${company})</div>
+        <div class="sign-date">Date ........... / ........... / ...........</div>
+      </div>
+      <div class="sign-col">
+        <div class="sign-label">Prepared By</div>
+        <div class="sign-line"></div>
+        <div class="sign-name">(${prepBy})</div>
+        <div class="sign-date">Date ${quotDate}</div>
+      </div>
+      <div class="sign-col">
+        <div class="sign-label">Authorized By</div>
+        <div class="sign-line"></div>
+        <div class="sign-name">(Kittithat Yongsirasawad)</div>
+        <div class="sign-date">Date ........... / ........... / ...........</div>
+      </div>
+    </div>
+  `;
+}
+
+function syncTC(val) {
+  // keep the quotTC textarea in sync so print picks up live edits
+  const el = document.getElementById('quotTC');
+  if (el) el.value = val;
+}
+
+function copyPkgText(idx) {
+  const pkg = packages[idx];
+  if (!pkg) return;
+  const lines = [`${pkg.name}`];
+  pkg.items.forEach(item => {
+    lines.push(`  - ${item.name}${item.desc ? '  ' + item.desc : ''}`);
+  });
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`Copied: ${pkg.name}`, 'success');
+  }).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast(`Copied: ${pkg.name}`, 'success');
+  });
+}
+
+// ═══════════════════════════════════════════════
+// EMAIL / TABS / HELPERS / INIT
+// ═══════════════════════════════════════════════
+function openEmailModal() {
+  document.getElementById('emailTo').value = v('clientEmail');
+  document.getElementById('emailCc').value = '';
+  const qno = v('quotNo')||'QT-001';
+  document.getElementById('emailSubject').value = `Health Screening Package Quotation — ${qno} | Doctor Anywhere Thailand`;
+  document.getElementById('emailBody').value = `Dear ${v('clientContact')||'Sir/Madam'},\n\nThank you for your interest in Doctor Anywhere's Corporate Health Screening services.\n\nPlease find our quotation (${qno}) for health screening packages tailored for ${v('clientCompany')||'your company'}.\n\nWe would be happy to discuss further or adjust the packages to better suit your requirements.\n\nWarm regards,\n${v('preparedBy')||'Corporate Health Sales Team'}\nDoctor Anywhere (Thailand)`;
+  document.getElementById('emailModal').classList.add('active');
+}
+function closeEmailModal() { document.getElementById('emailModal').classList.remove('active'); }
+function sendEmail() {
+  const to = document.getElementById('emailTo').value;
+  if (!to) { showToast('Please enter recipient email','error'); return; }
+  window.open(`mailto:${to}?cc=${document.getElementById('emailCc').value}&subject=${encodeURIComponent(document.getElementById('emailSubject').value)}&body=${encodeURIComponent(document.getElementById('emailBody').value)}`);
+  closeEmailModal(); showToast('Email client opened','success');
+}
+
+function switchTab(name) {
+  // Deactivate all tab-content panels
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  // Deactivate all .tab and .tab2 buttons
+  document.querySelectorAll('.tab, .tab2').forEach(t => t.classList.remove('active'));
+  // Activate the target panel
+  const tabEl = document.getElementById('tab-' + name);
+  if (tabEl) tabEl.classList.add('active');
+  // Activate the matching button — primary tabs
+  const primaryTabs = ['setup','packages','preview','quotation'];
+  const secondaryTabs = ['records','catalog','settings'];
+  if (primaryTabs.includes(name)) {
+    const idx = primaryTabs.indexOf(name);
+    document.querySelectorAll('.tab')[idx]?.classList.add('active');
+  } else if (secondaryTabs.includes(name)) {
+    const idx = secondaryTabs.indexOf(name);
+    document.querySelectorAll('.tab2')[idx]?.classList.add('active');
+  }
+  // Render hooks
+  if (name === 'preview')   renderPreview();
+  if (name === 'quotation') renderQuotation();
+  if (name === 'records')   renderRecordsTable();
+  if (name === 'catalog')   renderCatalogManager();
+  if (name === 'settings') {
+    const urlEl = document.getElementById('gasUrl');
+    if (urlEl) urlEl.value = getGasUrl();
+    const syncBtn = document.getElementById('syncBtn');
+    if (syncBtn) syncBtn.style.display = getGasUrl() ? '' : 'none';
+  }
+}
+
+function v(id) { return document.getElementById(id)?.value?.trim()||''; }
+function fmtN(n) { if(n===undefined||n===null||isNaN(n)) return '0'; return Math.round(n).toLocaleString('en-US'); }
+function fmtND(n) { if(n===undefined||n===null||isNaN(n)) return '0.0'; return n.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1}); }
+function fmt(d) { return new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function today() { return new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.className='toast show '+type;
+  setTimeout(()=>t.className='toast',2600);
+}
+function resetAll() {
+  if(!confirm('Reset everything? All packages and form data will be cleared.')) return;
+  packages=[]; pkgCounter=0;
+  ['quotNo','quotDate','quotValid','preparedBy','clientCompany','clientContact','clientEmail','clientPhone','quotNotes'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  renderPackages(); switchTab('setup'); showToast('Reset complete');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const d = new Date().toISOString().split('T')[0];
+  document.getElementById('quotDate').value = d;
+  const vd = new Date(); vd.setDate(vd.getDate()+30);
+  document.getElementById('quotValid').value = vd.toISOString().split('T')[0];
+  // Load persisted data
+  loadCustomItems();
+  loadRecords();
+  // Init UI
+  renderCatalog();
+  renderPackages();
+  renderRecordsTable();
+  renderCatalogManager();
+  // Restore GAS URL if saved
+  const savedUrl = getGasUrl();
+  if (savedUrl) {
+    const urlEl = document.getElementById('gasUrl');
+    if (urlEl) urlEl.value = savedUrl;
+    const syncBtn = document.getElementById('syncBtn');
+    if (syncBtn) syncBtn.style.display = '';
+    updateSyncStatus('connected');
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// CUSTOM CATALOG (localStorage + optional Sheets sync)
+// ═══════════════════════════════════════════════════════
+let customItems = [];   // loaded from localStorage
+
+function loadCustomItems() {
+  try { customItems = JSON.parse(localStorage.getItem('da_custom_catalog') || '[]'); } catch(e) { customItems = []; }
+  // Merge into live CATALOG array (avoid duplicates)
+  customItems.forEach(ci => {
+    if (!CATALOG.find(c => c.code === ci.code)) CATALOG.push(ci);
+    if (ci.isLump && ci.lumpThreshold && ci.lumpCostNC && !LUMP_PAIRS[ci.code]) {
+      LUMP_PAIRS[ci.code] = { threshold: ci.lumpThreshold, lumpCostNC: ci.lumpCostNC };
+    }
+  });
+}
+
+function saveCustomItems() {
+  localStorage.setItem('da_custom_catalog', JSON.stringify(customItems));
+}
+
+function toggleLumpFields(checked) {
+  document.getElementById('ni-lump-thresh-grp').style.display = checked ? '' : 'none';
+  document.getElementById('ni-lump-cost-grp').style.display   = checked ? '' : 'none';
+}
+
+// Auto-calc cost NC when cost WC or commission % changes
+document.addEventListener('input', e => {
+  if (e.target.id === 'ni-costWC' || e.target.id === 'ni-comm') {
+    const wc   = parseFloat(document.getElementById('ni-costWC').value) || 0;
+    const comm = parseFloat(document.getElementById('ni-comm').value)   || 0;
+    if (wc > 0) {
+      const nc = wc * (1 - comm / 100);
+      document.getElementById('ni-costNC').value = Math.round(nc * 100) / 100;
+    }
+  }
+});
+
+function addCustomItem() {
+  const code     = document.getElementById('ni-code').value.trim().toUpperCase();
+  const name     = document.getElementById('ni-name').value.trim();
+  const desc     = document.getElementById('ni-desc').value.trim();
+  const costNC   = parseFloat(document.getElementById('ni-costNC').value) || 0;
+  const provider = document.getElementById('ni-provider').value;
+  const isLump   = document.getElementById('ni-isLump').checked;
+  const lumpThresh = parseInt(document.getElementById('ni-lumpThresh').value) || 0;
+  const lumpCostNC = parseFloat(document.getElementById('ni-lumpCostNC').value) || 0;
+  const msgEl    = document.getElementById('addItemMsg');
+
+  if (!code || !name || !costNC) { msgEl.style.color='var(--coral)'; msgEl.textContent='⚠ Code, Name and Cost NC are required.'; return; }
+  if (CATALOG.find(c => c.code === code)) { msgEl.style.color='var(--coral)'; msgEl.textContent=`⚠ Code "${code}" already exists.`; return; }
+  if (isLump && (!lumpThresh || !lumpCostNC)) { msgEl.style.color='var(--coral)'; msgEl.textContent='⚠ Lump threshold and cost required.'; return; }
+
+  const newItem = { code, name, desc, costNC, provider, isLump: isLump||false, lumpThreshold: isLump?lumpThresh:null, lumpCostNC: isLump?lumpCostNC:null, custom: true };
+  CATALOG.push(newItem);
+  if (isLump && lumpThresh && lumpCostNC) LUMP_PAIRS[code] = { threshold: lumpThresh, lumpCostNC };
+  customItems.push(newItem);
+  saveCustomItems();
+
+  // Sync to Sheets if connected
+  const url = getGasUrl();
+  if (url) sheetCall(url, 'save_catalog_item', { code, name, desc, costNC, provider, isLump:isLump||false, lumpThreshold:lumpThresh||null, lumpCostNC:lumpCostNC||null }).catch(() => {});
+
+  // Clear form
+  ['ni-code','ni-name','ni-desc','ni-costWC','ni-costNC','ni-lumpThresh','ni-lumpCostNC'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('ni-isLump').checked = false; toggleLumpFields(false);
+  document.getElementById('ni-comm').value = '7';
+
+  msgEl.style.color='var(--green)'; msgEl.textContent=`✓ "${name}" added to catalog!`;
+  setTimeout(()=>msgEl.textContent='', 3000);
+  renderCatalog(); renderCatalogManager(); showToast(`+ ${code} added to catalog`, 'success');
+}
+
+function deleteCustomItem(code) {
+  if (!confirm(`Remove "${code}" from the catalog? This cannot be undone.`)) return;
+  customItems = customItems.filter(i => i.code !== code);
+  const idx = CATALOG.findIndex(i => i.code === code);
+  if (idx !== -1) CATALOG.splice(idx, 1);
+  delete LUMP_PAIRS[code];
+  saveCustomItems();
+  renderCatalog(); renderCatalogManager();
+  showToast(`Removed ${code}`, '');
+}
+
+function renderCatalogManager() {
+  const tbody = document.getElementById('catmgrTableBody');
+  if (!tbody) return;
+  const allItems = [...CATALOG];
+  tbody.innerHTML = allItems.map(item => {
+    const isCustom = !!item.custom;
+    const pair = LUMP_PAIRS[item.code];
+    return `<tr class="${isCustom?'custom-item':''}">
+      <td><span class="icode" style="font-size:10px;">${item.code}</span></td>
+      <td style="font-size:12px;font-weight:500;">${item.name}</td>
+      <td style="font-size:11px;color:var(--ink-light);">${item.desc||'—'}</td>
+      <td style="font-weight:600;">฿${fmtN(item.costNC)}</td>
+      <td><span class="tag tag-mll">${item.provider}</span></td>
+      <td>${pair?`<span style="font-size:10.5px;color:#92400e;">⚡ &lt;${pair.threshold}pax<br>฿${fmtN(pair.lumpCostNC)}</span>`:'—'}</td>
+      <td>${isCustom?'<span class="custom-badge">Custom</span>':'<span class="builtin-badge">Built-in</span>'}</td>
+      <td>${isCustom?`<button class="rmv-btn" onclick="deleteCustomItem('${item.code}')" title="Delete">✕</button>`:'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCatalogCSV() {
+  const header = 'Code,Name,Description,CostNC,Provider,IsLump,LumpThreshold,LumpCostNC\n';
+  const rows = CATALOG.map(i => {
+    const pair = LUMP_PAIRS[i.code];
+    return [i.code, '"'+i.name+'"', '"'+(i.desc||'')+'"', i.costNC, i.provider, pair?'TRUE':'FALSE', pair?pair.threshold:'', pair?pair.lumpCostNC:''].join(',');
+  }).join('\n');
+  downloadFile('da_catalog.csv', header + rows, 'text/csv');
+  showToast('Catalog exported as CSV', 'success');
+}
+
+function importCatalogCSV(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').slice(1); // skip header
+    let added = 0;
+    lines.forEach(line => {
+      if (!line.trim()) return;
+      const parts = line.match(/(".*?"|[^,]+)/g) || line.split(',');
+      const clean = parts.map(p => p.replace(/^"|"$/g,'').trim());
+      const [code, name, desc, costNC, provider, isLump, lumpThresh, lumpCostNC] = clean;
+      if (!code || !name || CATALOG.find(c=>c.code===code)) return;
+      const newItem = { code, name, desc, costNC:parseFloat(costNC)||0, provider:provider||'MLL', isLump:isLump==='TRUE', lumpThreshold:parseInt(lumpThresh)||null, lumpCostNC:parseFloat(lumpCostNC)||null, custom:true };
+      CATALOG.push(newItem);
+      if (newItem.isLump && newItem.lumpThreshold && newItem.lumpCostNC) LUMP_PAIRS[code]={threshold:newItem.lumpThreshold,lumpCostNC:newItem.lumpCostNC};
+      customItems.push(newItem); added++;
+    });
+    saveCustomItems(); renderCatalog(); renderCatalogManager();
+    showToast(`Imported ${added} item(s)`, 'success');
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ═══════════════════════════════════════════════════════
+// QUOTATION RECORDS (localStorage + optional Sheets sync)
+// ═══════════════════════════════════════════════════════
+let records = [];
+
+function loadRecords() {
+  try { records = JSON.parse(localStorage.getItem('da_records') || '[]'); } catch(e) { records = []; }
+  updateRecordsBadge();
+}
+
+function saveRecords() {
+  localStorage.setItem('da_records', JSON.stringify(records));
+  updateRecordsBadge();
+}
+
+function updateRecordsBadge() {
+  const el = document.getElementById('rec-count-badge');
+  if (el) el.textContent = records.length;
+}
+function updateSyncStatus(state) {
+  const dot   = document.getElementById('syncDot');
+  const lbl   = document.getElementById('syncLabel');
+  const sDot  = document.getElementById('settingsSyncDot');
+  const sLbl  = document.getElementById('settingsConnLabel');
+  const syncBtn = document.getElementById('syncBtn');
+
+  if (state === 'connected') {
+    if (dot)  { dot.className  = 'sync-dot connected'; }
+    if (lbl)  { lbl.textContent = 'Synced with Google Sheets'; }
+    if (syncBtn) syncBtn.style.display = '';
+  } else if (state === 'syncing') {
+    if (dot)  { dot.className  = 'sync-dot syncing'; }
+    if (lbl)  { lbl.textContent = 'Syncing…'; }
+  } else {
+    // disconnected
+    if (dot)  { dot.className  = 'sync-dot'; }
+    if (lbl)  { lbl.textContent = 'Not connected to Google Sheets'; }
+  }
+  // Mirror to settings dot (label is managed by testConnection directly)
+  if (sDot) {
+    sDot.className = dot ? dot.className : 'sync-dot ' + (state === 'connected' ? 'connected' : state === 'syncing' ? 'syncing' : '');
+  }
+}
+
+
+
+function saveRecord() {
+  const quotNo  = v('quotNo') || ('QT-' + new Date().getFullYear() + '-' + String(records.length+1).padStart(3,'0'));
+  const company = v('clientCompany') || 'Unknown Client';
+  const prepBy  = v('preparedBy') || '';
+  let totalRev  = 0; packages.forEach(p => { totalRev += calcPkgTotals(p).totalRevenue; });
+  let totalCost = 0; packages.forEach(p => { totalCost += calcPkgTotals(p).totalCost; });
+  const margin  = totalRev > 0 ? (totalRev - totalCost) / totalRev : 0;
+
+  if (!packages.length) { showToast('No packages to save', 'error'); return; }
+
+  const existing = records.findIndex(r => r.quotNo === quotNo);
+  const rec = {
+    id:          existing >= 0 ? records[existing].id : 'rec_' + Date.now(),
+    quotNo,
+    date:        v('quotDate') || new Date().toISOString().split('T')[0],
+    client:      company,
+    contact:     v('clientContact'),
+    email:       v('clientEmail'),
+    pkgCount:    packages.length,
+    totalRevenue:totalRev,
+    margin:      margin,
+    status:      'Draft',
+    preparedBy:  prepBy,
+    savedAt:     new Date().toISOString(),
+    packagesSnapshot: packages.map(p => ({ name:p.name, pax:p.pax, sp:p.sellingPricePerPax, items:p.items.map(i=>i.code) }))
+  };
+
+  if (existing >= 0) records[existing] = rec; else records.unshift(rec);
+  saveRecords(); renderRecordsTable();
+
+  // Sync to Sheets if connected
+  const url = getGasUrl();
+  if (url) {
+    updateSyncStatus('syncing');
+    sheetCall(url, 'save_record', {
+      id: rec.id, quotNo: rec.quotNo, date: rec.date, client: rec.client,
+      pkgCount: rec.pkgCount, totalRevenue: rec.totalRevenue,
+      margin: (margin*100).toFixed(1)+'%',
+      status: rec.status, preparedBy: rec.preparedBy,
+      packagesJSON: JSON.stringify(rec.packagesSnapshot)
+    }).then(() => { updateSyncStatus('connected'); showToast('Saved & synced to Google Sheets ✓', 'success'); })
+      .catch(() => { updateSyncStatus('connected'); showToast('Saved locally (Sheets sync failed)', ''); });
+  } else {
+    showToast('Record saved: ' + quotNo, 'success');
+  }
+}
+
+function updateRecordStatus(id, newStatus) {
+  const rec = records.find(r=>r.id===id); if (!rec) return;
+  rec.status = newStatus; saveRecords(); renderRecordsTable();
+  const url = getGasUrl();
+  if (url) sheetCall(url, 'update_status', { id, status: newStatus }).catch(() => {});
+}
+
+function deleteRecord(id) {
+  if (!confirm('Delete this record?')) return;
+  records = records.filter(r=>r.id!==id);
+  saveRecords(); renderRecordsTable(); showToast('Record deleted', '');
+}
+
+function renderRecordsTable() {
+  const tbody = document.getElementById('recordsTableBody');
+  if (!tbody) return;
+  if (!records.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--ink-light);">No records yet. Save a quotation to start tracking.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = records.map(r => {
+    const m = typeof r.margin === 'number' ? r.margin : parseFloat(r.margin)||0;
+    const mc = m >= 0.12 ? 'ok' : m >= 0.07 ? 'warn' : 'bad';
+    const statusMap = { Draft:'rec-draft', Sent:'rec-sent', Accepted:'rec-sent', Rejected:'rec-draft' };
+    const statusClass = statusMap[r.status] || 'rec-draft';
+    return `<tr>
+      <td style="font-weight:700;color:var(--teal);">${r.quotNo}</td>
+      <td>${r.date}</td>
+      <td>
+        <div style="font-weight:600;">${r.client}</div>
+        ${r.contact?`<div style="font-size:11px;color:var(--ink-light);">${r.contact}</div>`:''}
+      </td>
+      <td style="text-align:center;">${r.pkgCount}</td>
+      <td style="font-weight:700;">฿${fmtN(r.totalRevenue)}</td>
+      <td><span class="mbadge m-${mc}" style="font-size:11px;">${typeof r.margin==='string'?r.margin:(m*100).toFixed(1)+'%'}</span></td>
+      <td>
+        <select style="font-size:11.5px;padding:2px 6px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;"
+          onchange="updateRecordStatus('${r.id}',this.value)">
+          <option ${r.status==='Draft'?'selected':''}>Draft</option>
+          <option ${r.status==='Sent'?'selected':''}>Sent</option>
+          <option ${r.status==='Accepted'?'selected':''}>Accepted</option>
+          <option ${r.status==='Rejected'?'selected':''}>Rejected</option>
+        </select>
+      </td>
+      <td>
+        <div class="rec-actions">
+          <button class="btn btn-sm btn-outline" onclick="restoreRecord('${r.id}')" title="Restore to builder">↩ Open</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteRecord('${r.id}')" title="Delete">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function restoreRecord(id) {
+  const rec = records.find(r=>r.id===id);
+  if (!rec) return;
+  // Restore form fields
+  const setV = (elId, val) => { const el=document.getElementById(elId); if(el && val) el.value=val; };
+  setV('quotNo', rec.quotNo);
+  setV('quotDate', rec.date);
+  setV('clientCompany', rec.client);
+  setV('clientContact', rec.contact);
+  setV('clientEmail', rec.email);
+  setV('preparedBy', rec.preparedBy);
+  // Restore packages from snapshot (codes only — re-lookup from catalog)
+  packages = []; pkgCounter = 0;
+  (rec.packagesSnapshot || []).forEach(snap => {
+    pkgCounter++;
+    const newPkg = { id:'pkg_'+Date.now()+'_'+pkgCounter, name:snap.name, pax:snap.pax, sellingPricePerPax:snap.sp, items:[] };
+    (snap.items||[]).forEach(code => {
+      const ref = CATALOG.find(i=>i.code===code);
+      if (ref) newPkg.items.push({code:ref.code,name:ref.name,desc:ref.desc,costNC:ref.costNC,provider:ref.provider});
+    });
+    packages.push(newPkg);
+  });
+  renderPackages(); switchTab('setup');
+  showToast(`Opened: ${rec.quotNo}`, 'success');
+}
+
+
+// ═══════════════════════════════════════════════════════
+// GOOGLE SHEETS / SETTINGS
+// ═══════════════════════════════════════════════════════
+function getGasUrl() { return (localStorage.getItem('da_gas_url')||'').trim(); }
+
+function saveSettings() {
+  const url = document.getElementById('gasUrl')?.value?.trim() || '';
+  localStorage.setItem('da_gas_url', url);
+  const syncBtn = document.getElementById('syncBtn');
+  if (syncBtn) syncBtn.style.display = url ? '' : 'none';
+}
+
+
+
+// ── Google Sheets communication ──────────────────────────
+// READS: fetch GET (CORS-friendly via GAS doGet)
+// WRITES: fetch POST no-cors (fire-and-forget, no response body needed)
+
+
+
+
+
+
+
+// ── Google Sheets communication ──────────────────────────────────────────
+// READS  → JSONP via <script> tag injection (bypasses all CORS issues)
+// WRITES → fetch POST mode:no-cors (fire-and-forget)
+
+
+async 
+
+
+
+
+// ── Google Sheets: ALL calls via JSONP GET ───────────────────────────────
+// Works from any origin (file://, localhost, any domain) — no CORS issues
+
+function sheetCall(url, action, payload) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_gas_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const timer  = setTimeout(() => { cleanup(); reject(new Error('Timeout after 15s')); }, 15000);
+
+    window[cbName] = function(data) { cleanup(); resolve(data); };
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      const el = document.getElementById(cbName);
+      if (el) el.remove();
+    }
+
+    const params = new URLSearchParams({ action, callback: cbName });
+    if (payload) params.set('payload', encodeURIComponent(JSON.stringify(payload)));
+
+    const script    = document.createElement('script');
+    script.id       = cbName;
+    script.src      = url + '?' + params.toString();
+    script.onerror  = () => { cleanup(); reject(new Error('Request failed — check URL')); };
+    document.head.appendChild(script);
+  });
+}
+
+// Keep sheetGet and sheetPost as aliases for backward compatibility
+function sheetGet(url, action, params) { return sheetCall(url, action, null); }
+function sheetPost(url, data) {
+  const url2 = getGasUrl();
+  if (!url2) return Promise.resolve({ ok: false });
+  return sheetCall(url2, data.action, data);
+}
+
+function runTestConnection() {
+  const urlEl = document.getElementById('gasUrl');
+  const url   = urlEl ? urlEl.value.trim() : '';
+  if (!url) { showToast('Please paste the Apps Script URL first', 'error'); return; }
+  localStorage.setItem('da_gas_url', url);
+  testConnection();
+}
+
+async function testConnection() {
+  const url = getGasUrl();
+  if (!url) { showToast('No URL — please enter it above', 'error'); return; }
+
+  const lbl = document.getElementById('settingsConnLabel');
+  const dot = document.getElementById('settingsSyncDot');
+  if (lbl) lbl.textContent = 'Testing…';
+  if (dot) dot.className = 'sync-dot syncing';
+
+  try {
+    const res = await sheetCall(url, 'ping');
+    if (!res.ok) throw new Error('ping returned not ok');
+
+    if (dot) dot.className = 'sync-dot connected';
+
+    // Get record count
+    const recRes = await sheetCall(url, 'get_records');
+    const count  = recRes.records ? recRes.records.length : 0;
+    if (lbl) lbl.textContent = '✓ Connected! ' + count + ' record(s) in Google Sheets.';
+    updateSyncStatus('connected');
+
+    const syncBtn = document.getElementById('syncBtn');
+    if (syncBtn) syncBtn.style.display = '';
+
+    // Pull custom catalog items
+    try {
+      const catRes = await sheetCall(url, 'get_catalog');
+      if (catRes.items && catRes.items.length) {
+        let added = 0;
+        catRes.items.forEach(ci => {
+          if (!CATALOG.find(c => c.code === ci.code)) {
+            const ni = {
+              code: String(ci.code), name: String(ci.name), desc: String(ci.desc||''),
+              costNC: parseFloat(ci.costNC)||0, provider: String(ci.provider||'MLL'),
+              isLump: ci.isLump === 'TRUE' || ci.isLump === true,
+              lumpThreshold: parseInt(ci.lumpThreshold)||null,
+              lumpCostNC: parseFloat(ci.lumpCostNC)||null, custom: true
+            };
+            CATALOG.push(ni);
+            if (ni.isLump && ni.lumpThreshold && ni.lumpCostNC)
+              LUMP_PAIRS[ni.code] = { threshold: ni.lumpThreshold, lumpCostNC: ni.lumpCostNC };
+            if (!customItems.find(c => c.code === ni.code)) customItems.push(ni);
+            added++;
+          }
+        });
+        if (added) { saveCustomItems(); renderCatalog(); renderCatalogManager(); showToast('Loaded ' + added + ' item(s) from Sheets', 'success'); }
+      }
+    } catch(e) { /* catalog pull is non-critical */ }
+
+    showToast('✓ Connected to Google Sheets!', 'success');
+
+  } catch(err) {
+    if (dot) dot.className = 'sync-dot';
+    if (lbl) lbl.textContent = '✗ Failed: ' + err.message + ' — check URL and "Who has access: Anyone"';
+    updateSyncStatus('disconnected');
+    showToast('Connection failed: ' + err.message, 'error');
+  }
+}
+
+async function syncAllToSheets() {
+  const url = getGasUrl();
+  if (!url) { showToast('No Google Sheets URL configured', 'error'); return; }
+  if (!records.length) { showToast('No records to sync', ''); return; }
+  updateSyncStatus('syncing');
+  showToast('Syncing ' + records.length + ' record(s)…', '');
+  let done = 0;
+  for (const r of records) {
+    try {
+      await sheetCall(url, 'save_record', {
+        id: r.id, quotNo: r.quotNo, date: r.date, client: r.client,
+        pkgCount: r.pkgCount, totalRevenue: r.totalRevenue,
+        margin: typeof r.margin === 'string' ? r.margin : (r.margin*100).toFixed(1)+'%',
+        status: r.status, preparedBy: r.preparedBy||'',
+        packagesJSON: JSON.stringify(r.packagesSnapshot||[])
+      });
+      done++;
+    } catch(e) { /* continue with next */ }
+  }
+  updateSyncStatus('connected');
+  showToast('Synced ' + done + '/' + records.length + ' records to Google Sheets ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+// LOCAL DATA EXPORT / IMPORT
+// ═══════════════════════════════════════════════════════
+function downloadFile(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function exportLocalData() {
+  const data = { records, customItems, exportedAt: new Date().toISOString(), version:'1.0' };
+  downloadFile('da_quotation_data.json', JSON.stringify(data, null, 2), 'application/json');
+  showToast('Data exported', 'success');
+}
+
+function importLocalData(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.records) { records = data.records; saveRecords(); renderRecordsTable(); }
+      if (data.customItems) {
+        customItems = data.customItems;
+        customItems.forEach(ci => {
+          if (!CATALOG.find(c=>c.code===ci.code)) {
+            CATALOG.push(ci);
+            if (ci.isLump && ci.lumpThreshold && ci.lumpCostNC) LUMP_PAIRS[ci.code]={threshold:ci.lumpThreshold,lumpCostNC:ci.lumpCostNC};
+          }
+        });
+        saveCustomItems(); renderCatalog(); renderCatalogManager();
+      }
+      showToast('Data imported successfully', 'success');
+    } catch { showToast('Invalid file format', 'error'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function clearAllLocalData() {
+  if (!confirm('Clear ALL local data (records + custom catalog)? This cannot be undone.')) return;
+  localStorage.removeItem('da_records');
+  localStorage.removeItem('da_custom_catalog');
+  localStorage.removeItem('da_gas_url');
+  records = []; customItems = [];
+  renderRecordsTable(); renderCatalogManager(); renderCatalog();
+  updateRecordsBadge();
+  showToast('All local data cleared', '');
+}
+
+
+function copyGASCode() {
+  const code = `function doGet(e) {
+  const action   = e.parameter.action || 'ping';
+  const callback = e.parameter.callback || '';
+  const ss       = SpreadsheetApp.getActiveSpreadsheet();
+  let result     = {};
+
+  try {
+    // ── READS ──────────────────────────────────────────
+    if (action === 'ping') {
+      result = { ok: true, message: 'Connected to Google Sheets!' };
+
+    } else if (action === 'get_records') {
+      const sh = ss.getSheetByName('QuotationRecords');
+      if (!sh) { result = { records: [] }; }
+      else {
+        const rows = sh.getDataRange().getValues().slice(1);
+        result = { records: rows.map(r => ({
+          id:String(r[0]), quotNo:String(r[1]), date:String(r[2]),
+          client:String(r[3]), pkgCount:Number(r[4]), totalRevenue:Number(r[5]),
+          margin:String(r[6]), status:String(r[7]),
+          preparedBy:String(r[8]), savedAt:String(r[9])
+        }))};
+      }
+
+    } else if (action === 'get_catalog') {
+      const sh = ss.getSheetByName('CustomCatalog');
+      if (!sh) { result = { items: [] }; }
+      else {
+        const rows = sh.getDataRange().getValues().slice(1);
+        result = { items: rows.filter(r => r[0]).map(r => ({
+          code:String(r[0]), name:String(r[1]), desc:String(r[2]||''),
+          costNC:Number(r[3]), provider:String(r[4]||'MLL'),
+          isLump:r[5], lumpThreshold:r[6]||'', lumpCostNC:r[7]||''
+        }))};
+      }
+
+    // ── WRITES (via GET + payload param) ──────────────
+    } else if (action === 'save_record') {
+      const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      let sh = ss.getSheetByName('QuotationRecords');
+      if (!sh) {
+        sh = ss.insertSheet('QuotationRecords');
+        sh.appendRow(['ID','QuotNo','Date','Client','Packages','TotalRevenue','Margin','Status','PreparedBy','SavedAt','PackagesJSON']);
+        sh.setFrozenRows(1);
+      }
+      const rows = sh.getDataRange().getValues().slice(1);
+      const idx  = rows.findIndex(r => String(r[0]) === String(d.id));
+      const row  = [d.id, d.quotNo, d.date, d.client, d.pkgCount,
+                    d.totalRevenue, d.margin, d.status||'Draft', d.preparedBy||'',
+                    new Date().toISOString(), d.packagesJSON||''];
+      if (idx >= 0) { sh.getRange(idx+2, 1, 1, row.length).setValues([row]); }
+      else          { sh.appendRow(row); }
+      result = { ok: true };
+
+    } else if (action === 'save_catalog_item') {
+      const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      let sh = ss.getSheetByName('CustomCatalog');
+      if (!sh) {
+        sh = ss.insertSheet('CustomCatalog');
+        sh.appendRow(['Code','Name','Description','CostNC','Provider','IsLump','LumpThreshold','LumpCostNC','AddedAt']);
+        sh.setFrozenRows(1);
+      }
+      sh.appendRow([d.code, d.name, d.desc||'', d.costNC, d.provider||'MLL',
+                    d.isLump||false, d.lumpThreshold||'', d.lumpCostNC||'',
+                    new Date().toISOString()]);
+      result = { ok: true };
+
+    } else if (action === 'update_status') {
+      const d = JSON.parse(decodeURIComponent(e.parameter.payload || '{}'));
+      const sh = ss.getSheetByName('QuotationRecords');
+      if (sh) {
+        const rows = sh.getDataRange().getValues();
+        for (let i = 1; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(d.id)) {
+            sh.getRange(i+1, 8).setValue(d.status);
+            break;
+          }
+        }
+      }
+      result = { ok: true };
+
+    } else {
+      result = { ok: false, error: 'Unknown action: ' + action };
+    }
+  } catch(err) {
+    result = { ok: false, error: err.toString() };
+  }
+
+  const json = JSON.stringify(result);
+  if (callback) {
+    return ContentService.createTextOutput(callback + '(' + json + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+  navigator.clipboard.writeText(code)
+    .then(() => showToast('Apps Script code copied! Paste into Apps Script editor.', 'success'))
+    .catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = code; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      showToast('Apps Script code copied!', 'success');
+    });
+}
+
+</script>
+</body>
+</html>
