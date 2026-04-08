@@ -581,7 +581,8 @@
           id:String(r[0]), quotNo:String(r[1]), date:String(r[2]),
           client:String(r[3]), pkgCount:Number(r[4]), totalRevenue:Number(r[5]),
           margin:String(r[6]), status:String(r[7]),
-          preparedBy:String(r[8]), savedAt:String(r[9])
+          preparedBy:String(r[8]), savedAt:String(r[9]),
+          packagesJSON:String(r[10]||'')
         }))};
       }
 
@@ -1923,7 +1924,14 @@ async function fetchRecordsFromSheets() {
   try {
     const res = await sheetCall(url, 'get_records');
     if (res.records) {
-      records = res.records;
+      // Parse packagesJSON back into packagesSnapshot for each record
+      records = res.records.map(r => {
+        let packagesSnapshot = [];
+        if (r.packagesJSON) {
+          try { packagesSnapshot = JSON.parse(r.packagesJSON); } catch(e) { packagesSnapshot = []; }
+        }
+        return { ...r, packagesSnapshot };
+      });
       updateRecordsBadge();
       renderRecordsTable();
       updateSyncStatus('connected');
@@ -1981,19 +1989,37 @@ async function saveRecord() {
 
   const existing = records.findIndex(r => r.quotNo === quotNo);
   const rec = {
-    id:               existing >= 0 ? records[existing].id : 'rec_' + Date.now(),
+    id:           existing >= 0 ? records[existing].id : 'rec_' + Date.now(),
     quotNo,
-    date:             v('quotDate') || new Date().toISOString().split('T')[0],
-    client:           company,
-    contact:          v('clientContact'),
-    email:            v('clientEmail'),
-    pkgCount:         packages.length,
-    totalRevenue:     totalRev,
-    margin:           margin,
-    status:           existing >= 0 ? (records[existing].status || 'Draft') : 'Draft',
-    preparedBy:       prepBy,
-    savedAt:          new Date().toISOString(),
-    packagesSnapshot: packages.map(p => ({ name:p.name, pax:p.pax, sp:p.sellingPricePerPax, items:p.items.map(i=>i.code) }))
+    date:         v('quotDate')      || new Date().toISOString().split('T')[0],
+    client:       company,
+    contact:      v('clientContact') || '',
+    email:        v('clientEmail')   || '',
+    phone:        v('clientPhone')   || '',
+    addr:         v('clientAddr')    || '',
+    taxId:        v('clientTaxId')   || '',
+    branch:       v('clientBranch')  || '',
+    validUntil:   v('quotValid')     || '',
+    prepEmail:    v('prepEmail')     || '',
+    prepPhone:    v('prepPhone')     || '',
+    pkgCount:     packages.length,
+    totalRevenue: totalRev,
+    margin:       margin,
+    status:       existing >= 0 ? (records[existing].status || 'Draft') : 'Draft',
+    preparedBy:   prepBy,
+    savedAt:      new Date().toISOString(),
+    packagesSnapshot: packages.map(p => ({
+      name: p.name,
+      pax:  p.pax,
+      sp:   p.sellingPricePerPax,
+      items: p.items.map(i => ({
+        code:     i.code,
+        name:     i.name,
+        desc:     i.desc     || '',
+        costNC:   i.costNC,
+        provider: i.provider || 'MLL'
+      }))
+    }))
   };
 
   // Optimistic update: add to local cache and re-render immediately
@@ -2004,10 +2030,15 @@ async function saveRecord() {
 
   try {
     await sheetCall(url, 'save_record', {
-      id: rec.id, quotNo: rec.quotNo, date: rec.date, client: rec.client,
-      pkgCount: rec.pkgCount, totalRevenue: rec.totalRevenue,
-      margin: (margin*100).toFixed(1)+'%',
-      status: rec.status, preparedBy: rec.preparedBy,
+      id:           rec.id,
+      quotNo:       rec.quotNo,
+      date:         rec.date,
+      client:       rec.client,
+      pkgCount:     rec.pkgCount,
+      totalRevenue: rec.totalRevenue,
+      margin:       (margin*100).toFixed(1)+'%',
+      status:       rec.status,
+      preparedBy:   rec.preparedBy,
       packagesJSON: JSON.stringify(rec.packagesSnapshot)
     });
     updateSyncStatus('connected');
@@ -2093,29 +2124,83 @@ function renderRecordsTable() {
 }
 
 function restoreRecord(id) {
-  const rec = records.find(r=>r.id===id);
+  const rec = records.find(r => r.id === id);
   if (!rec) return;
+
   // Restore form fields
-  const setV = (elId, val) => { const el=document.getElementById(elId); if(el && val) el.value=val; };
-  setV('quotNo', rec.quotNo);
-  setV('quotDate', rec.date);
+  const setV = (elId, val) => { const el = document.getElementById(elId); if (el && val !== undefined) el.value = val || ''; };
+  setV('quotNo',        rec.quotNo);
+  setV('quotDate',      rec.date);
   setV('clientCompany', rec.client);
   setV('clientContact', rec.contact);
-  setV('clientEmail', rec.email);
-  setV('preparedBy', rec.preparedBy);
-  // Restore packages from snapshot (codes only — re-lookup from catalog)
+  setV('clientEmail',   rec.email);
+  setV('preparedBy',    rec.preparedBy);
+
+  // Also restore extended fields if present in record
+  setV('clientAddr',    rec.addr    || '');
+  setV('clientTaxId',   rec.taxId   || '');
+  setV('clientBranch',  rec.branch  || '');
+  setV('clientPhone',   rec.phone   || '');
+  setV('quotValid',     rec.validUntil || '');
+  setV('prepEmail',     rec.prepEmail  || '');
+  setV('prepPhone',     rec.prepPhone  || '');
+
+  // Restore packages from snapshot
   packages = []; pkgCounter = 0;
+  let restoredItems = 0, missingItems = 0;
+
   (rec.packagesSnapshot || []).forEach(snap => {
     pkgCounter++;
-    const newPkg = { id:'pkg_'+Date.now()+'_'+pkgCounter, name:snap.name, pax:snap.pax, sellingPricePerPax:snap.sp, items:[] };
-    (snap.items||[]).forEach(code => {
-      const ref = CATALOG.find(i=>i.code===code);
-      if (ref) newPkg.items.push({code:ref.code,name:ref.name,desc:ref.desc,costNC:ref.costNC,provider:ref.provider});
+    const newPkg = {
+      id:                 'pkg_' + Date.now() + '_' + pkgCounter,
+      name:               snap.name || ('Package ' + pkgCounter),
+      pax:                snap.pax  || 1,
+      sellingPricePerPax: snap.sp   || 0,
+      items:              []
+    };
+
+    (snap.items || []).forEach(itemData => {
+      if (typeof itemData === 'string') {
+        // OLD FORMAT: itemData is just a code string — look up from catalog
+        const ref = CATALOG.find(i => i.code === itemData);
+        if (ref) {
+          newPkg.items.push({ code:ref.code, name:ref.name, desc:ref.desc||'', costNC:ref.costNC, provider:ref.provider||'MLL' });
+          restoredItems++;
+        } else {
+          // Code not found in catalog — create a placeholder so data isn't lost
+          newPkg.items.push({ code:itemData, name:'[Item: ' + itemData + ']', desc:'', costNC:0, provider:'MLL' });
+          missingItems++;
+        }
+      } else {
+        // NEW FORMAT: itemData has full details saved — use directly, no catalog lookup needed
+        newPkg.items.push({
+          code:     itemData.code     || '',
+          name:     itemData.name     || itemData.code || '?',
+          desc:     itemData.desc     || '',
+          costNC:   itemData.costNC   || 0,
+          provider: itemData.provider || 'MLL'
+        });
+        restoredItems++;
+      }
     });
+
     packages.push(newPkg);
   });
-  renderPackages(); switchTab('setup');
-  showToast(`Opened: ${rec.quotNo}`, 'success');
+
+  // Set the first package as active target for catalog
+  if (packages.length) {
+    activePackageId = packages[0].id;
+    updateCatalogTarget();
+  }
+
+  rebuildSharedLumpMap();
+  renderPackages();
+  switchTab('packages'); // go straight to packages tab so team can see the restored items
+
+  const msg = missingItems > 0
+    ? `Opened ${rec.quotNo} — ${missingItems} item(s) not found in catalog (shown as placeholders)`
+    : `Opened: ${rec.quotNo} — ${restoredItems} item(s) restored`;
+  showToast(msg, missingItems > 0 ? '' : 'success');
 }
 
 
@@ -2356,7 +2441,8 @@ function copyGASCode() {
           id:String(r[0]), quotNo:String(r[1]), date:String(r[2]),
           client:String(r[3]), pkgCount:Number(r[4]), totalRevenue:Number(r[5]),
           margin:String(r[6]), status:String(r[7]),
-          preparedBy:String(r[8]), savedAt:String(r[9])
+          preparedBy:String(r[8]), savedAt:String(r[9]),
+          packagesJSON:String(r[10]||'')
         }))};
       }
 
